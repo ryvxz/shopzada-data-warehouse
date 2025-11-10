@@ -15,6 +15,7 @@ A data warehouse project for ShopZada using _____ methodology.
 | Jodimeer Ammang | Infrastructure Engineer |
 | Aaron Cuevas | ETL Engineer |
 | Justin Lloyd Floro | Data Engineer |
+| Nigel Anunciacion| BI Dev/Data Visualization |
 
 ---
 
