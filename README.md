@@ -26,11 +26,4 @@ A data warehouse project for ShopZada using _____ methodology.
 
 ## 📂 Folder Structure
 
-shopzada-data-warehouse/
-│
-├── docs/          # Project documentation (design docs, reports, screenshots)
-├── scripts/       # ETL or data transformation scripts (Python, etc.)
-├── sql/           # SQL scripts for schema creation, ETL loading, queries
-├── infra/         # Infrastructure setup (e.g. Docker, data sources)
-├── dashboard/     # Visualization dashboards or Power BI/Tableau files
-└── README.md      # Project overview and metadata
+``` shopzada-data-warehouse/ │ ├── docs/ # Project documentation (design docs, reports, screenshots) ├── scripts/ # ETL or data transformation scripts (Python, etc.) ├── sql/ # SQL scripts for schema creation, ETL loading, queries ├── infra/ # Infrastructure setup (e.g. Docker, data sources) ├── dashboard/ # Visualization dashboards or Power BI/Tableau files └── README.md # Project overview and metadata ```
