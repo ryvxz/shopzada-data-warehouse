@@ -35,6 +35,7 @@ shopzada-data-warehouse/
 ├── sql/           # SQL scripts for schema creation, ETL loading, queries
 ├── infra/         # Infrastructure setup (e.g. Docker, data sources)
 ├── dashboard/     # Visualization dashboards or Power BI/Tableau files
+├── workflows/     # Workflow or automation definitions (ETL process control)
 └── README.md      # Project overview and metadata
 ```
 
