@@ -1,7 +1,7 @@
 # ShopZada Data Warehouse
 
 ## Project Description
-A data warehouse project for ShopZada using _____ methodology.
+A data warehouse project for ShopZada using Kimball methodology.
 
 ---
 
@@ -20,7 +20,7 @@ A data warehouse project for ShopZada using _____ methodology.
 ---
 
 ## Methodology
-**Chosen methodology:** [Kimball / Inmon / Hybrid]  
+**Chosen methodology:** Kimball
 
 
 ---
