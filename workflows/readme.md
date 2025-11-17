@@ -44,3 +44,15 @@ If, after this change, you are still experiencing permission issues when creatin
 ```bash
 sudo chmod -R 777 ./config
 ```
+
+### 6. Compose up the project
+```
+docker compose up -d
+```
+
+> Now, after waiting sometime, you can open the web interface from 'localhost:8080 in your browser'
+
+### To stop the project (in the same directory you ran the compose up command)
+```
+docker compose down
+```
