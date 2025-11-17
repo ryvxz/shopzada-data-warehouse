@@ -1,1 +1,2 @@
 workflows/logs/*
+workflows/dags/__pycache__/*
