@@ -1,0 +1,187 @@
+File: ../../data/raw\customer\user_job.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - user_id: object, sample: USER40678, pattern: USER<id>
+  - name: object, sample: Zion Feest
+  - job_title: object, sample: Technician
+  - job_level: object, sample: Accounts
+
+File: ../../data/raw\enterprise\order_with_merchant_data3.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 300000
+  - order_id: object, sample: e8bafe72-d506-4437-b357-f38682353238
+  - merchant_id: object, sample: MERCHANT13004
+  - staff_id: object, sample: STAFF0009879
+
+File: ../../data/raw\marketing\campaign_data.csv
+Columns and patterns:
+  - 	campaign_id	campaign_name	campaign_description	discount: object, sample: 0	CAMPAIGN24776	wouldn't you know it	"""Twee retro vinyl single-origin coffee sartorial fanny pack brunch offal health."" - Raleigh Senger"	1%
+
+File: ../../data/raw\marketing\transactional_campaign_data.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 2
+  - transaction_date: object, sample: 2023-08-14
+  - campaign_id: object, sample: CAMPAIGN49972
+  - order_id: object, sample: 0612c246-57f1-40e8-9993-0f8d41992049
+  - estimated arrival: object, sample: 10days, pattern: <numofdays>days
+  - availed: int64, sample: 1
+
+File: ../../data/raw\operations\line_item_data_prices1.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - order_id: object, sample: 8d8acbac-ccbb-4609-a978-98dee3ac3088
+  - price: float64, sample: 12.81
+  - quantity: object, sample: 6px
+
+File: ../../data/raw\operations\line_item_data_prices2.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 500000
+  - order_id: object, sample: f1c591a5-fd7c-498f-ae4e-2739334878ce
+  - price: float64, sample: 38.07
+  - quantity: object, sample: 4PC
+
+File: ../../data/raw\operations\line_item_data_products1.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - order_id: object, sample: 8d8acbac-ccbb-4609-a978-98dee3ac3088
+  - product_name: object, sample: Grandmas swedish thin pancakes
+  - product_id: object, sample: PRODUCT16794
+
+File: ../../data/raw\operations\line_item_data_products2.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 500000
+  - order_id: object, sample: f1c591a5-fd7c-498f-ae4e-2739334878ce
+  - product_name: object, sample: clock
+  - product_id: object, sample: PRODUCT14601
+
+File: ../../data/raw\operations\order_data_20211001-20220101.csv
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 4
+  - order_id: object, sample: b4c411de-2fd3-4806-91ae-165edc9baa12
+  - user_id: object, sample: USER28531, pattern: USER<id>
+  - estimated arrival: object, sample: 13days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2021-10-12
+
+File: ../../data/raw\business\product_list.xlsx
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - product_id: object, sample: PRODUCT16794
+  - product_name: object, sample: Grandmas swedish thin pancakes
+  - product_type: object, sample: readymade_breakfast
+  - price: float64, sample: 12.81
+
+File: ../../data/raw\operations\order_data_20220101-20221201.xlsx
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - order_id: object, sample: eac330c0-457a-4faa-b15a-52a3c440e7f3
+  - user_id: object, sample: USER23985, pattern: USER<id>
+  - estimated arrival: object, sample: 12days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2022-08-13
+
+File: ../../data/raw\customer\user_data.json
+Columns and patterns:
+  - user_id: object, sample: USER40678, pattern: USER<id>
+  - creation_date: object, sample: 2021-03-17 22:56:13
+  - name: object, sample: Zion Feest
+  - street: object, sample: 14938 West Trace side
+  - state: object, sample: New Jersey
+  - city: object, sample: Birmingham
+  - country: object, sample: Hong Kong
+  - birthdate: object, sample: 1998-04-06 05:29:37
+  - gender: object, sample: male
+  - device_address: object, sample: 17:fb:f2:60:94:4b
+  - user_type: object, sample: basic
+
+File: ../../data/raw\operations\order_data_20221201-20230601.json
+Columns and patterns:
+  - order_id: object, sample: 26de6b40-db2d-40b9-a64c-58736eaf0381
+  - user_id: object, sample: USER36943, pattern: USER<id>
+  - estimated arrival: object, sample: 3days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2023-01-30
+
+File: ../../data/raw\enterprise\order_with_merchant_data1.parquet
+Columns and patterns:
+  - order_id: object, sample: eac330c0-457a-4faa-b15a-52a3c440e7f3
+  - merchant_id: object, sample: MERCHANT58557
+  - staff_id: object, sample: STAFF0027757
+
+File: ../../data/raw\enterprise\order_with_merchant_data2.parquet
+Columns and patterns:
+  - order_id: object, sample: 848f9cad-c4d3-4822-83e9-322ae73261c3
+  - merchant_id: object, sample: MERCHANT9789
+  - staff_id: object, sample: STAFF0020354
+
+File: ../../data/raw\operations\line_item_data_prices3.parquet
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 1000000
+  - order_id: object, sample: dc70f978-3a6b-4baf-b97e-4a88690a34fe
+  - price: float64, sample: 42.13
+  - quantity: object, sample: 8PC
+
+File: ../../data/raw\operations\line_item_data_products3.parquet
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 1000000
+  - order_id: object, sample: dc70f978-3a6b-4baf-b97e-4a88690a34fe
+  - product_name: object, sample: Swedish cucumber salad pressgurka
+  - product_id: object, sample: PRODUCT20506
+
+File: ../../data/raw\operations\order_data_20200101-20200701.parquet
+Columns and patterns:
+  - order_id: object, sample: 0248bb48-d0d0-4a11-a158-f620640a757a
+  - user_id: object, sample: USER16283, pattern: USER<id>
+  - estimated arrival: object, sample: 13days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2020-06-04
+
+File: ../../data/raw\customer\user_credit_card.pickle
+Columns and patterns:
+  - user_id: object, sample: USER40678, pattern: USER<id>
+  - name: object, sample: Zion Feest
+  - credit_card_number: int64, sample: 4294956114
+  - issuing_bank: object, sample: bpi
+
+File: ../../data/raw\operations\order_data_20200701-20211001.pickle
+Columns and patterns:
+  - order_id: object, sample: e1beaf61-e687-4e70-bdd4-3ea338139a0b
+  - user_id: object, sample: USER36309, pattern: USER<id>
+  - estimated arrival: object, sample: 13days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2021-01-01
+
+File: ../../data/raw\enterprise\merchant_data.html
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - merchant_id: object, sample: MERCHANT53971
+  - creation_date: object, sample: 2022-06-28 11:42:04
+  - name: object, sample: Whitby Group
+  - street: object, sample: 813 North Isle bury
+  - state: object, sample: South Carolina
+  - city: object, sample: Boise
+  - country: object, sample: Brunei Darussalam
+  - contact_number: object, sample: 661.157.5528
+
+File: ../../data/raw\enterprise\staff_data.html
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 0
+  - staff_id: object, sample: STAFF0009650
+  - name: object, sample: Randall Bergstrom
+  - job_level: object, sample: intermediate
+  - street: object, sample: 376 Land chester
+  - state: object, sample: Texas
+  - city: object, sample: Omaha
+  - country: object, sample: Cook Islands
+  - contact_number: object, sample: (138)548-8481
+  - creation_date: object, sample: 2020-09-04 02:33:28
+
+File: ../../data/raw\operations\order_data_20230601-20240101.html
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 2
+  - order_id: object, sample: 0612c246-57f1-40e8-9993-0f8d41992049
+  - user_id: object, sample: USER24284, pattern: USER<id>
+  - estimated arrival: object, sample: 10days, pattern: <numofdays>days
+  - transaction_date: object, sample: 2023-08-14
+
+File: ../../data/raw\operations\order_delays.html
+Columns and patterns:
+  - Unnamed: 0: int64, sample: 24261
+  - order_id: object, sample: a0c62902-2728-4b38-bf40-89816ebe183f
+  - delay in days: int64, sample: 9
+
