@@ -50,7 +50,7 @@ with DAG(
     with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
         load_physical_model = EmptyOperator(task_id='load_physical_model')
 
-    with TaskGroup('kimball_dw', tooltip='Kimball dimensional model') as kimball_dw:
+    with TaskGroup('kimball_dw_bigquery_or_postgres', tooltip='Kimball dimensional model') as kimball_dw:
         build_dimensions = EmptyOperator(task_id='build_dimensions')
         build_facts = EmptyOperator(task_id='build_facts')
         build_dimensions >> build_facts
@@ -59,10 +59,10 @@ with DAG(
         create_datamarts = EmptyOperator(task_id='create_datamarts')
         create_views = EmptyOperator(task_id='create_views')
 
-    with TaskGroup('analytics', tooltip='Run analytics queries') as analytics:
+    with TaskGroup('analytics_tableau', tooltip='Run analytics queries') as analytics:
         run_analytics = EmptyOperator(task_id='run_analytics')
 
-    with TaskGroup('presentation', tooltip='Load data for presentation layer') as presentation:
+    with TaskGroup('presentation_tableau', tooltip='Load data for presentation layer') as presentation:
         load_to_presentation = EmptyOperator(task_id='load_to_presentation')
 
     end = EmptyOperator(task_id='end')
