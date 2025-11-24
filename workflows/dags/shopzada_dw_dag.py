@@ -1,10 +1,20 @@
+import sys
+from pathlib import Path
+from importlib import import_module
+
 import pendulum
 
 from airflow.models.dag import DAG
-from airflow.operators.empty import EmptyOperator
-from airflow.operators.bash import BashOperator
-from airflow.utils.task_group import TaskGroup
-from airflow.models.baseoperator import chain
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.sdk import chain, DAG, TaskGroup
+
+def run_script(script_folder: str, script_name: str, dag_folder: str):
+    """A callable to run scripts from a specified script folder."""
+    scripts_path = Path(dag_folder).joinpath('..', '..', 'scripts', script_folder)
+    sys.path.insert(0, str(scripts_path))
+    module = import_module(script_name)
+    module.main() # Assuming each script has a main() function
 
 with DAG(
     dag_id='shopzada_data_warehouse',
@@ -16,36 +26,44 @@ with DAG(
     start = EmptyOperator(task_id='start')
 
     with TaskGroup('source_staging', tooltip='Source data from dataset and stage it into Postgres') as source_staging:
-        ingest_excel = BashOperator(
+        ingest_excel = PythonOperator(
             task_id='ingest_excel',
-            bash_command='python ingest_excel.py',
-            cwd='{{ dag_folder }}/../../scripts/ingestion'
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_excel', 'dag_folder': '{{ dag_folder }}'},
         )
-        ingest_html = BashOperator(
+        ingest_html = PythonOperator(
             task_id='ingest_html',
-            bash_command='python ingest_html.py',
-            cwd='{{ dag_folder }}/../../scripts/ingestion'
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_html', 'dag_folder': '{{ dag_folder }}'},
         )
-        ingest_json = BashOperator(
+        ingest_json = PythonOperator(
             task_id='ingest_json',
-            bash_command='python ingest_json.py',
-            cwd='{{ dag_folder }}/../../scripts/ingestion'
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_json', 'dag_folder': '{{ dag_folder }}'},
         )
-        ingest_parquet = BashOperator(
+        ingest_parquet = PythonOperator(
             task_id='ingest_parquet',
-            bash_command='python ingest_parquet.py',
-            cwd='{{ dag_folder }}/../../scripts/ingestion'
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_parquet', 'dag_folder': '{{ dag_folder }}'},
         )
-        ingest_pickle = BashOperator(
+        ingest_pickle = PythonOperator(
             task_id='ingest_pickle',
-            bash_command='python ingest_pickle.py',
-            cwd='{{ dag_folder }}/../../scripts/ingestion'
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_pickle', 'dag_folder': '{{ dag_folder }}'},
         )
 
     with TaskGroup('transform_and_quality_checks', tooltip='Transform data and perform quality checks') as transform_and_quality_checks:
-        transform_data = EmptyOperator(task_id='transform_data')
-        quality_checks = EmptyOperator(task_id='quality_checks')
-        transform_data >> quality_checks
+        transform_data = PythonOperator(
+            task_id='transform_data',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'transformation', 'script_name': 'transform_data', 'dag_folder': '{{ dag_folder }}'},
+        )
+        quality_checks = PythonOperator(
+            task_id='quality_checks',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'transformation', 'script_name': 'quality_checks', 'dag_folder': '{{ dag_folder }}'},
+        )
+        #default dependency transform >> quality
 
     with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
         load_physical_model = EmptyOperator(task_id='load_physical_model')
@@ -53,7 +71,6 @@ with DAG(
     with TaskGroup('kimball_dw_bigquery_or_postgres', tooltip='Kimball dimensional model') as kimball_dw:
         build_dimensions = EmptyOperator(task_id='build_dimensions')
         build_facts = EmptyOperator(task_id='build_facts')
-        build_dimensions >> build_facts
 
     with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
         create_datamarts = EmptyOperator(task_id='create_datamarts')
