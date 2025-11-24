@@ -1,0 +1,11 @@
+user_id,creation_date,name,street,state,city,country,birthdate,gender,device_address,user_type
+USER40678,2021-03-17 22:56:13,Zion Feest,14938 West Trace side,New Jersey,Birmingham,Hong Kong,1998-04-06 05:29:37,male,17:fb:f2:60:94:4b,basic
+USER08728,2022-10-10 12:53:20,Kattie Bergstrom,4476 West Haven fort,Alabama,Irvine,Mayotte,2003-05-22 11:16:19,male,b0:17:a7:0b:d6:67,premium
+USER29759,2020-05-20 04:34:44,Aiden Corwin,59980 North Crest chester,North Carolina,Tampa,Iraq,2008-08-29 16:42:05,female,24:f2:0b:88:2f:bd,basic
+USER16806,2021-05-28 07:36:30,Vince Gislason,541 Radial mouth,Illinois,Orlando,New Zealand,2012-02-09 14:12:37,male,a4:f5:fd:fe:07:f9,basic
+USER27644,2023-03-16 19:25:35,Adele Okuneva,896 Glen bury,Arizona,Reno,Mexico,1976-10-13 00:53:54,male,ac:80:b3:bc:8d:5f,premium
+USER00616,2020-07-04 04:45:27,Joshuah Jacobi,735 Isle berg,Illinois,Portland,Afghanistan,2019-10-04 12:05:41,female,a5:88:49:43:4a:f1,basic
+USER11325,2023-03-03 14:14:12,Cecelia Homenick,373 West River furt,Missouri,Kansas ,El Salvador,1985-01-14 10:47:38,male,8b:e3:2d:cf:a8:0d,basic
+USER17253,2022-03-09 06:11:17,Santa Lehner,9814 New Vista chester,Nebraska,Charlotte,"Moldova, Republic of",1987-08-26 10:39:59,female,73:94:a8:42:14:77,verified
+USER62341,2021-07-04 12:18:29,Allen Gutmann,729 Corner ville,Georgia,Albuquerque,Estonia,1992-05-16 00:39:11,female,f2:43:09:5e:33:76,basic
+USER32334,2022-05-12 18:35:08,Dorian Will,26368 Locks side,Washington,Durham,Armenia,1995-02-23 11:21:36,female,06:5d:42:5c:ca:0f,premium
