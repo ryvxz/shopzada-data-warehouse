@@ -1,9 +1,39 @@
 version: '3.8'
 
+# Set environment variables for Airflow and Postgres
+x-airflow-common:
+  &airflow-common
+  image: apache/airflow:2.8.1-python3.11 # Use a specific version
+  # Set User ID to prevent permission issues with mounted volumes
+  user: "${AIRFLOW_UID:-50000}:0" 
+  restart: always
+  environment:
+    # Airflow Metadata DB connection (using our Postgres service 'db')
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-shopzada123}@db:5432/shopzada_dwh
+    # Important: Set a key for webserver security
+    AIRFLOW__WEBSERVER__SECRET_KEY: this-is-a-temporary-key-for-shopzada
+    # Specify the modules Airflow needs (for DWH connection and file handling)
+    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-postgres pandas pyarrow"
+    # Create the default admin user automatically for quick startup
+    _AIRFLOW_WWW_USER_USERNAME: airflow
+    _AIRFLOW_WWW_USER_PASSWORD: airflow
+  volumes:
+    # 1. DAGs: Map local 'workflows' folder to container's DAGs directory
+    - ./workflows:/opt/airflow/dags
+    # 2. Logs: Persistent logs for debugging
+    - ./logs:/opt/airflow/logs
+    # 3. Plugins/Config: For future customization
+    - ./plugins:/opt/airflow/plugins
+    - ./config:/opt/airflow/config
+  # ALL Airflow services only wait for the Database to be healthy
+  depends_on:
+    db:
+      condition: service_healthy
+
 services:
-  # 1. PostgreSQL Database (DB) - Used for DWH and Airflow Metadata
+  # 1. PostgreSQL Database (DB) - Our DWH and Airflow Metadata DB
   db:
-    image: postgres:16-alpine # Using a modern, lightweight image
+    image: postgres:16-alpine
     container_name: shopzada-db
     restart: always
     environment:
@@ -13,6 +43,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      # Use a named volume for persistent database data
       - postgres_data:/var/lib/postgresql/data/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -20,57 +51,81 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. ETL Service - Runs the custom Python scripts
+  # 2. ETL Service - Runs the custom Python scripts using our custom image
   etl-service:
     build:
       context: ../ 
       dockerfile: infra/Dockerfile
     container_name: shopzada-etl
-    # Mount project files for quick script changes during development
+    # Mount the project files so Python can access them
     volumes:
       - ../:/usr/src/app/
     depends_on:
       db:
         condition: service_healthy 
     environment:
-      # Connection details for Python scripts to access the DB
-      DB_HOST: shopzada-db
+      # Connection details for Python scripts to access the DWH
+      DB_HOST: db
       DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTS_PASSWORD:-shopzada123}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123}
+      AIRFLOW_UID: ${AIRFLOW_UID:-50000} # Inherit UID from the shared config
 
-  # 3. Airflow Orchestrator - Schedules the ETL workflow
-  airflow-orchestrator:
-    image: apache/airflow:2.8.1-python3.11 # Matching Airflow and Python versions
-    container_name: shopzada-airflow
-    restart: always
+  # 3. Airflow Initialization Service - Runs DB migrations once
+  airflow-init:
+    <<: *airflow-common
+    container_name: shopzada-airflow-init
+    # FIXED COMMAND: Using 'airflow' command directly
+    command: ["bash", "-c", "airflow db migrate && airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email admin@example.com"]
+    # The init service should run and exit, so we set this to 'no'
+    restart: "no"
+
+  # 4. Airflow Webserver - Provides the UI
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: shopzada-airflow-webserver
+    command: ["bash", "-c", "airflow webserver"] # Now starts the webserver
     ports:
-      - "8080:8080" # Airflow Webserver UI
-    user: "${AIRFLOW_UID:-50000}:0" # Ensures correct volume permissions
+      - "8080:8080" # Exposed port for the Airflow UI
+    healthcheck:
+      test: ["CMD", "curl", "--silent", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    # DEPENDENCY SIMPLIFIED: Only needs DB and Init to succeed.
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      # Airflow metadata connection string (uses the 'db' service)
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-shopzada123}@shopzada-db:5432/shopzada_dwh
-      AIRFLOW__WEBSERVER__SECRET_KEY: this-is-a-temporary-key # Needs a secure key in production
-      
-      # Install required Python dependencies inside the Airflow worker/scheduler/webserver
-      _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-postgres pandas pyarrow"
-    
-    volumes:
-      # Map the local workflow folder to the DAGs directory
-      - ./workflows:/opt/airflow/dags
+      airflow-init:
+        condition: service_completed_successfully
 
-  # 4. BI Dashboard Service (Placeholder)
-  dashboard-service:
-    image: placeholder/bi-tool:latest 
-    container_name: shopzada-dashboard
-    ports:
-      - "3000:3000" 
+  # 5. Airflow Scheduler - Monitors tasks and triggers execution
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: shopzada-airflow-scheduler
+    command: ["bash", "-c", "airflow scheduler"] # Now starts the scheduler
+    # DEPENDENCY SIMPLIFIED: Only needs DB and Init to succeed.
     depends_on:
       db:
         condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  # 6. BI Dashboard Service (Placeholder) - Commented out
+  # dashboard-service:
+  #   image: placeholder/bi-tool:latest 
+  #   container_name: shopzada-dashboard
+  #   ports:
+  #     - "3000:3000" 
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
 
 volumes:
   postgres_data:
-    # Persists the PostgreSQL data across container restarts
+    # Volume to persist PostgreSQL data
+  logs:
+    # Volume to persist Airflow logs
+  plugins:
+    # Volume for Airflow plugins
+  config:
+    # Volume for Airflow configuration files
