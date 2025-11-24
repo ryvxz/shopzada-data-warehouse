@@ -1,0 +1,4 @@
+import pandas as pd
+
+def read_xlsx(file_path):
+    return pd.read_excel(file_path)
