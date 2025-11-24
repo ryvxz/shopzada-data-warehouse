@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database (DB) - Used for DWH and Airflow Metadata
+  db:
+    image: postgres:16-alpine # Using a modern, lightweight image
+    container_name: shopzada-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123} 
+      POSTGRES_DB: shopzada_dwh
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. ETL Service - Runs the custom Python scripts
+  etl-service:
+    build:
+      context: ../ 
+      dockerfile: infra/Dockerfile
+    container_name: shopzada-etl
+    # Mount project files for quick script changes during development
+    volumes:
+      - ../:/usr/src/app/
+    depends_on:
+      db:
+        condition: service_healthy 
+    environment:
+      # Connection details for Python scripts to access the DB
+      DB_HOST: shopzada-db
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTS_PASSWORD:-shopzada123}
+
+  # 3. Airflow Orchestrator - Schedules the ETL workflow
+  airflow-orchestrator:
+    image: apache/airflow:2.8.1-python3.11 # Matching Airflow and Python versions
+    container_name: shopzada-airflow
+    restart: always
+    ports:
+      - "8080:8080" # Airflow Webserver UI
+    user: "${AIRFLOW_UID:-50000}:0" # Ensures correct volume permissions
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Airflow metadata connection string (uses the 'db' service)
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-shopzada123}@shopzada-db:5432/shopzada_dwh
+      AIRFLOW__WEBSERVER__SECRET_KEY: this-is-a-temporary-key # Needs a secure key in production
+      
+      # Install required Python dependencies inside the Airflow worker/scheduler/webserver
+      _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-postgres pandas pyarrow"
+    
+    volumes:
+      # Map the local workflow folder to the DAGs directory
+      - ./workflows:/opt/airflow/dags
+
+  # 4. BI Dashboard Service (Placeholder)
+  dashboard-service:
+    image: placeholder/bi-tool:latest 
+    container_name: shopzada-dashboard
+    ports:
+      - "3000:3000" 
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    # Persists the PostgreSQL data across container restarts
