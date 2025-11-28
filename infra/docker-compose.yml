@@ -9,7 +9,7 @@ x-airflow-common:
   restart: always
   environment:
     # Airflow Metadata DB connection (using our Postgres service 'db')
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-shopzada123}@db:5432/shopzada_dwh
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-shopzada123}@db_dwh:5432/shopzada_dwh
     # Important: Set a key for webserver security
     AIRFLOW__WEBSERVER__SECRET_KEY: this-is-a-temporary-key-for-shopzada
     # Specify the modules Airflow needs (for DWH connection and file handling)
@@ -27,31 +27,49 @@ x-airflow-common:
     - ./config:/opt/airflow/config
   # ALL Airflow services only wait for the Database to be healthy
   depends_on:
-    db:
+    db_dwh:
       condition: service_healthy
 
 services:
-  # 1. PostgreSQL Database (DB) - Our DWH and Airflow Metadata DB
-  db:
+  # 1. PostgreSQL Database (DWH) - Our actual Data Warehouse DB
+  db_dwh:
     image: postgres:16-alpine
-    container_name: shopzada-db
+    container_name: shopzada-db-dwh
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123} 
       POSTGRES_DB: shopzada_dwh
     ports:
-      - "5432:5432"
+      - "5432:5432"   # DWH DB port (you can change if you need to access both on the same machine)
     volumes:
-      # Use a named volume for persistent database data
-      - postgres_data:/var/lib/postgresql/data/
+      - postgres_dwh_data:/var/lib/postgresql/data/
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # 2. ETL Service - Runs the custom Python scripts using our custom image
+  # 2. PostgreSQL Database (Staging) - Our Staging DB
+  db_staging:
+    image: postgres:16-alpine
+    container_name: shopzada-db-staging
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123} 
+      POSTGRES_DB: shopzada_staging
+    ports:
+      - "5433:5432"  # Staging DB port (mapped to 5433 on host to avoid conflict)
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. ETL Service - Runs the custom Python scripts using our custom image
   etl-service:
     build:
       context: ../ 
@@ -61,16 +79,16 @@ services:
     volumes:
       - ../:/usr/src/app/
     depends_on:
-      db:
+      db_dwh:
         condition: service_healthy 
     environment:
       # Connection details for Python scripts to access the DWH
-      DB_HOST: db
+      DB_HOST: db_dwh
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123}
       AIRFLOW_UID: ${AIRFLOW_UID:-50000} # Inherit UID from the shared config
 
-  # 3. Airflow Initialization Service - Runs DB migrations once
+  # 4. Airflow Initialization Service - Runs DB migrations once
   airflow-init:
     <<: *airflow-common
     container_name: shopzada-airflow-init
@@ -79,7 +97,7 @@ services:
     # The init service should run and exit, so we set this to 'no'
     restart: "no"
 
-  # 4. Airflow Webserver - Provides the UI
+  # 5. Airflow Webserver - Provides the UI
   airflow-webserver:
     <<: *airflow-common
     container_name: shopzada-airflow-webserver
@@ -91,26 +109,13 @@ services:
       interval: 30s
       timeout: 30s
       retries: 3
-    # DEPENDENCY SIMPLIFIED: Only needs DB and Init to succeed.
     depends_on:
-      db:
+      db_dwh:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
 
-  # 5. Airflow Scheduler - Monitors tasks and triggers execution
-  airflow-scheduler:
-    <<: *airflow-common
-    container_name: shopzada-airflow-scheduler
-    command: ["bash", "-c", "airflow scheduler"] # Now starts the scheduler
-    # DEPENDENCY SIMPLIFIED: Only needs DB and Init to succeed.
-    depends_on:
-      db:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-
-  # 6. BI Dashboard Service (Placeholder) - Commented out
+ # 6. BI Dashboard Service (Placeholder) - Commented out
   # dashboard-service:
   #   image: placeholder/bi-tool:latest 
   #   container_name: shopzada-dashboard
@@ -119,10 +124,23 @@ services:
   #   depends_on:
   #     db:
   #       condition: service_healthy
+  
+  # 6. Airflow Scheduler - Monitors tasks and triggers execution
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: shopzada-airflow-scheduler
+    command: ["bash", "-c", "airflow scheduler"] # Now starts the scheduler
+    depends_on:
+      db_dwh:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
 
 volumes:
-  postgres_data:
-    # Volume to persist PostgreSQL data
+  postgres_dwh_data:
+    # Volume to persist PostgreSQL data for DWH
+  postgres_staging_data:
+    # Volume to persist PostgreSQL data for Staging
   logs:
     # Volume to persist Airflow logs
   plugins:
