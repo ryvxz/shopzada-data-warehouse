@@ -49,7 +49,6 @@ def ingest_folder(folder_path):
             staging_tables[table_name] = df
             column_formats[table_name] = extract_column_formats(df)
 
-            # Replace UNKNOWN with STRING for consistency
             for col, detected in column_formats[table_name].items():
                 if detected == ['UNKNOWN']:
                     column_formats[table_name][col] = ['STRING']
@@ -69,7 +68,6 @@ def generate_template():
         sample_values = df.head(1).to_dict(orient='records')[0] if n_rows > 0 else {}
         formats = {col: column_formats[table_name].get(col, ['STRING']) for col in table_columns}
 
-        # Attempt to find source file dynamically
         source_file = "UNKNOWN"
         file_type = "UNKNOWN"
         for root, dirs, files in os.walk(RAW_DATA_DIR):
