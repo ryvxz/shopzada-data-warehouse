@@ -7,6 +7,7 @@ import pendulum
 from airflow.models.dag import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import chain, DAG, TaskGroup
 
 def run_script(script_folder: str, script_name: str, dag_folder: str):
@@ -25,32 +26,19 @@ with DAG(
 ) as dag:
     start = EmptyOperator(task_id='start')
 
-    with TaskGroup('source_staging', tooltip='Source data from dataset and stage it into Postgres') as source_staging:
-        ingest_excel = PythonOperator(
-            task_id='ingest_excel',
-            python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_excel', 'dag_folder': '{{ dag_folder }}'},
+    with TaskGroup('source_staging', tooltip='Source data from dataset and stage it') as source_staging:
+        ingest_all_sources = BashOperator(
+            task_id='ingest_all_sources',
+            bash_command='python ingest.py',
+            cwd='{{ dag_folder }}/../../scripts/ingestion'
         )
-        ingest_html = PythonOperator(
-            task_id='ingest_html',
+
+        load_to_staging_db = PythonOperator(
+            task_id='load_to_staging_db',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_html', 'dag_folder': '{{ dag_folder }}'},
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_to_sql', 'dag_folder': '{{ dag_folder }}'},
         )
-        ingest_json = PythonOperator(
-            task_id='ingest_json',
-            python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_json', 'dag_folder': '{{ dag_folder }}'},
-        )
-        ingest_parquet = PythonOperator(
-            task_id='ingest_parquet',
-            python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_parquet', 'dag_folder': '{{ dag_folder }}'},
-        )
-        ingest_pickle = PythonOperator(
-            task_id='ingest_pickle',
-            python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_pickle', 'dag_folder': '{{ dag_folder }}'},
-        )
+        ingest_all_sources >> load_to_staging_db
 
     with TaskGroup('transform_and_quality_checks', tooltip='Transform data and perform quality checks') as transform_and_quality_checks:
         transform_data = PythonOperator(
