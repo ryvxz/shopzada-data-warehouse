@@ -6,24 +6,24 @@ from time import time
 import os
 
 # --- Configuration ---
-#user = "postgres"
-#password = "shopzada123"
-#host = "db_staging"
-#port = 5433
-#db = "shopzada_staging"
+user = "postgres"
+password = "shopzada123"
+host = "db_staging"
+port = 5432 #internal port
+db = "shopzada_staging"
 
 # --- For Testing ---
-user = ""
-password = ""
-host = ""
-port = 5432
-db = ""
+# user = ""
+# password = ""
+# host = ""
+# port = 5432
+# db = ""
 
 # This should be the directory path
-#FILES_FOR_STAGING_DIR = '/usr/src/app/data/staging/'
+FILES_FOR_STAGING_DIR = '/opt/airflow/plugins/data/staging'
 
 # --- For Testing ---
-FILES_FOR_STAGING_DIR = ''
+# FILES_FOR_STAGING_DIR = ''
 
 BATCH_SIZE = 100000
 

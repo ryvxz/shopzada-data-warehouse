@@ -4,8 +4,8 @@ from readers import csv_reader, excel_reader, json_reader, pickle_reader, html_r
 from pattern_detector import extract_column_formats
 from file_detector import detect_file_type
 
-RAW_DATA_DIR = r"C:\Users\Aaron\shopzada-data-warehouse\data\raw"
-STAGING_DIR = r"C:\Users\Aaron\shopzada-data-warehouse\data\staging"
+RAW_DATA_DIR = r"/opt/airflow/plugins/data/raw"
+STAGING_DIR = r"/opt/airflow/plugins/data/staging"
 
 staging_tables = {}
 column_formats = {}
@@ -78,7 +78,3 @@ if __name__ == "__main__":
     report_path = os.path.join(STAGING_DIR, "data_quality_report.csv")
     df_report.to_csv(report_path, index=False)
     print(f"Data quality report saved: {report_path}")
-
-    for table_name in ["business_product_list", "customer_user_data"]:
-        print(f"Table: {table_name}")
-        print(staging_tables[table_name].head(), "\n")
