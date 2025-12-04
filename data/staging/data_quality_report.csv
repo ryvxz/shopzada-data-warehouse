@@ -1,8 +1,4 @@
 table_name,column_name,detected_format
-business_product_list,product_id,STRING
-business_product_list,product_name,STRING
-business_product_list,product_type,STRING
-business_product_list,price,NUMERIC_STRING
 customer_user_credit_card,user_id,USER_ID
 customer_user_credit_card,name,STRING
 customer_user_credit_card,credit_card_number,NUMERIC_STRING
@@ -84,10 +80,6 @@ operations_order_data_20211001-20220101,order_id,STRING
 operations_order_data_20211001-20220101,user_id,USER_ID
 operations_order_data_20211001-20220101,estimated arrival,NUM_DAYS
 operations_order_data_20211001-20220101,transaction_date,YYYY-MM-DD
-operations_order_data_20220101-20221201,order_id,STRING
-operations_order_data_20220101-20221201,user_id,USER_ID
-operations_order_data_20220101-20221201,estimated arrival,NUM_DAYS
-operations_order_data_20220101-20221201,transaction_date,YYYY-MM-DD
 operations_order_data_20221201-20230601,order_id,STRING
 operations_order_data_20221201-20230601,user_id,USER_ID
 operations_order_data_20221201-20230601,estimated arrival,NUM_DAYS
