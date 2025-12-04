@@ -31,10 +31,12 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-../.}/workflows/dags:/opt/airflow/dags  # DAGS
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
-    - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/airflow/plugins #Dito ilalagay yung python scripts and others
-    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/plugins #Dito ilalagay yung dataset, ako na talaga gumawa docker ah
-    - ${AIRFLOW_PROJ_DIR:-.}/dashboard:/opt/airflow/plugins #dito lagay
+    - ${AIRFLOW_PROJ_DIR:-../.}/scripts:/opt/airflow/plugins/scripts #Dito ilalagay yung python scripts and others
+    - ${AIRFLOW_PROJ_DIR:-../.}/data:/opt/airflow/plugins/data #Dito ilalagay yung dataset, ako na talaga gumawa docker ah
+    - ${AIRFLOW_PROJ_DIR:-../.}/dashboard:/opt/airflow/plugins/dashboard #dito lagay
   user: "${AIRFLOW_UID:-50000}:0"
+  networks:
+    - shopzada-net
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -61,6 +63,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - shopzada-net
 
   # 2. PostgreSQL Database (Staging) - Our Staging DB
   db_staging:
@@ -80,25 +84,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - shopzada-net
 
-  # 3. ETL Service - Runs the custom Python scripts using our custom image
-  etl-service:
-    build:
-      context: ../ 
-      dockerfile: infra/Dockerfile_etl
-    container_name: shopzada-etl
-    # Mount the project files so Python can access them
-    volumes:
-      - ../:/usr/src/app/
-    depends_on:
-      db_dwh:
-        condition: service_healthy 
-    environment:
-      # Connection details for Python scripts to access the DWH
-      DB_HOST: db_dwh
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-shopzada123}
-      AIRFLOW_UID: ${AIRFLOW_UID:-50000} # Inherit UID from the shared config
 
  # 6. BI Dashboard Service (Placeholder) - Commented out
   # dashboard-service:
@@ -126,6 +114,8 @@ services:
       retries: 5
       start_period: 5s
     restart: always
+    networks:
+      - shopzada-net
 
   redis:
     # Redis is limited to 7.2-bookworm due to licencing change
@@ -137,9 +127,10 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 30s
-      retries: 50
       start_period: 30s
     restart: always
+    networks:
+      - shopzada-net
 
   airflow-apiserver:
     <<: *airflow-common
@@ -366,3 +357,7 @@ volumes:
     # Volume for Airflow plugins
   config:
     # Volume for Airflow configuration files
+
+networks:
+  shopzada-net:
+    driver: bridge
