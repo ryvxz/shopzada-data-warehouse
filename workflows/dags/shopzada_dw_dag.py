@@ -11,17 +11,24 @@ from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import chain, DAG, TaskGroup
 
 
-folder = "/opt/airflow/plugins/scripts"
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+folder = os.getenv("SCRIPTS_FOLDER")
 
 def run_script(script_folder: str, script_name: str):
     """A callable to run scripts from a specified script folder."""
-    scripts_path = Path(folder).joinpath(script_folder)
+    scripts_path = Path(folder or "/opt/airflow/plugins/scripts").joinpath(script_folder)
     sys.path.insert(0, str(scripts_path))
     try:
         module = import_module(script_name)
         module.main()  # Assuming each script has a main() function
     finally:
         sys.path.pop(0)
+
+DEFAULT_RETRIES = int(os.getenv("DEFAULT_RETRIES", 3))
 
 with DAG(
     dag_id='shopzada_data_warehouse',
@@ -37,14 +44,14 @@ with DAG(
             task_id='ingest_all_sources',
             bash_command='python ingest.py',
             cwd=f'{folder}/ingestion',
-            retries=3
+            retries=DEFAULT_RETRIES
         )
 
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
             python_callable=run_script,
             op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_to_sql'},
-            retries=3
+            retries=DEFAULT_RETRIES
         )
         ingest_all_sources >> load_to_staging_db
 

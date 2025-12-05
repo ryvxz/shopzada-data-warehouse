@@ -1,11 +1,15 @@
 import os
 import pandas as pd
+from dotenv import load_dotenv
+
 from file_detector import detect_file_type
 from pattern_detector import extract_column_formats
 
-RAW_DATA_DIR = r"C:\Users\Aaron\shopzada-data-warehouse\data\raw"
-STAGING_DIR = r"C:\Users\Aaron\shopzada-data-warehouse\data\staging"
-TEMPLATE_PATH = os.path.join(STAGING_DIR, "ingestion_template.csv")
+load_dotenv()
+
+RAW_DATA_DIR = os.getenv("RAW_DATA_DIR")
+STAGING_DIR = os.getenv("STAGING_DIR")
+TEMPLATE_PATH = os.getenv("TEMPLATE_PATH")
 
 staging_tables = {}
 column_formats = {}
@@ -55,7 +59,7 @@ def ingest_folder(folder_path):
 
 def ingest_all():
     for dept in os.listdir(RAW_DATA_DIR):
-        dept_path = os.path.join(RAW_DATA_DIR, dept)
+        dept_path = os.path.join(RAW_DATA_DIR or "/opt/airflow/plugins/data/raw", dept)
         if os.path.isdir(dept_path):
             ingest_folder(dept_path)
 
@@ -70,7 +74,7 @@ def generate_template():
 
         source_file = "UNKNOWN"
         file_type = "UNKNOWN"
-        for root, dirs, files in os.walk(RAW_DATA_DIR):
+        for root, dirs, files in os.walk(RAW_DATA_DIR or "/opt/airflow/plugins/data/raw"):
             for file in files:
                 t_name = os.path.basename(root).lower() + "_" + os.path.splitext(file)[0].lower()
                 if t_name == table_name:
@@ -80,7 +84,7 @@ def generate_template():
                     except:
                         file_type = "UNKNOWN"
 
-        staged_path = os.path.join(STAGING_DIR, f"{table_name}.parquet")
+        staged_path = os.path.join(STAGING_DIR or "/opt/airflow/plugins/data/staging", f"{table_name}.parquet")
 
         rows.append({
             "Table Name": table_name,
@@ -95,7 +99,7 @@ def generate_template():
         })
 
     df_template = pd.DataFrame(rows)
-    os.makedirs(STAGING_DIR, exist_ok=True)
+    os.makedirs(STAGING_DIR or "/opt/airflow/plugins/data/staging", exist_ok=True)
     df_template.to_csv(TEMPLATE_PATH, index=False)
     print(f"Ingestion template generated: {TEMPLATE_PATH}")
 

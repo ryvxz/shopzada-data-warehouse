@@ -5,27 +5,22 @@ from sqlalchemy import create_engine
 from time import time
 import os
 
-# --- Configuration ---
-user = "postgres"
-password = "shopzada123"
-host = "db_staging"
-port = 5432 #internal port
-db = "shopzada_staging"
+from dotenv import load_dotenv, find_dotenv
 
-# --- For Testing ---
-# user = ""
-# password = ""
-# host = ""
-# port = 5432
-# db = ""
+load_dotenv(find_dotenv())
+
+
+# --- Configuration ---
+user = os.getenv("DB_USER")
+password = os.getenv("DB_PASSWORD")
+host = os.getenv("DB_HOST")
+port = os.getenv("DB_PORT")
+db = os.getenv("DB_NAME")
 
 # This should be the directory path
-FILES_FOR_STAGING_DIR = '/opt/airflow/plugins/data/staging'
+FILES_FOR_STAGING_DIR = os.getenv("FILES_FOR_STAGING_DIR")
 
-# --- For Testing ---
-# FILES_FOR_STAGING_DIR = ''
-
-BATCH_SIZE = 100000
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 100000))
 
 # Create engine for the postgresql (moved inside main or kept global if needed across modules)
 ENGINE = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
@@ -140,7 +135,7 @@ def main():
     for file_name in os.listdir(FILES_FOR_STAGING_DIR):
         if file_name.endswith('.parquet'):
             
-            file_path = os.path.join(FILES_FOR_STAGING_DIR, file_name)
+            file_path = os.path.join(FILES_FOR_STAGING_DIR or "/opt/airflow/plugins/data/staging", file_name)
             
             table_name = file_name.replace('.parquet', '').lower()
             

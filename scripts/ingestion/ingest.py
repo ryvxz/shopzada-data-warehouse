@@ -1,11 +1,14 @@
 import os
 import pandas as pd
+from dotenv import load_dotenv, find_dotenv
 from readers import csv_reader, excel_reader, json_reader, pickle_reader, html_reader, parquet_reader
 from pattern_detector import extract_column_formats
 from file_detector import detect_file_type
 
-RAW_DATA_DIR = r"/opt/airflow/plugins/data/raw"
-STAGING_DIR = r"/opt/airflow/plugins/data/staging"
+load_dotenv(find_dotenv())
+
+RAW_DATA_DIR = os.getenv("RAW_DATA_DIR")
+STAGING_DIR = os.getenv("STAGING_DIR")
 
 staging_tables = {}
 column_formats = {}
@@ -54,7 +57,7 @@ def ingest_folder(folder_path):
 
 if __name__ == "__main__":
     for department in os.listdir(RAW_DATA_DIR):
-        dept_path = os.path.join(RAW_DATA_DIR, department)
+        dept_path = os.path.join(RAW_DATA_DIR or "/opt/airflow/plugins/data/raw", department)
         if os.path.isdir(dept_path):
             ingest_folder(dept_path)
 
@@ -62,9 +65,9 @@ if __name__ == "__main__":
     for table in staging_tables.keys():
         print(table)
 
-    os.makedirs(STAGING_DIR, exist_ok=True)
+    os.makedirs(STAGING_DIR or "/opt/airflow/plugins/data/staging", exist_ok=True)
     for table_name, df in staging_tables.items():
-        staged_path = os.path.join(STAGING_DIR, f"{table_name}.parquet")
+        staged_path = os.path.join(STAGING_DIR or "/opt/airflow/plugins/data/staging", f"{table_name}.parquet")
         df.to_parquet(staged_path, index=False)
         print(f"Staged table saved: {staged_path}")
 
@@ -75,6 +78,6 @@ if __name__ == "__main__":
     ]
 
     df_report = pd.DataFrame(rows)
-    report_path = os.path.join(STAGING_DIR, "data_quality_report.csv")
+    report_path = os.path.join(STAGING_DIR or "/opt/airflow/plugins/data/staging", "data_quality_report.csv")
     df_report.to_csv(report_path, index=False)
     print(f"Data quality report saved: {report_path}")
