@@ -1,4 +1,4 @@
 FROM apache/airflow:3.1.3
-# Copy dependencies and install them first for better Docker layer caching.
-ADD workflows/requirements.txt .
+# Copy dependencies to the working directory.
+COPY workflows/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
