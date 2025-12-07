@@ -47,13 +47,20 @@ with DAG(
             retries=DEFAULT_RETRIES
         )
 
+        data_quality_checks_and_report = PythonOperator(
+            task_id = 'data_quality_checks_and_report',
+            python_callable = run_script,
+            op_kwargs = {'script_folder':'ingestion','script_name':'data_quality_checks'},
+            retries = DEFAULT_RETRIES
+        )
+
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
             python_callable=run_script,
             op_kwargs={'script_folder': 'ingestion', 'script_name': 'load_to_staging'},
             retries=DEFAULT_RETRIES
         )
-        ingest_all_sources >> load_to_staging_db
+        ingest_all_sources >> data_quality_checks_and_report >> load_to_staging_db
 
 
     with TaskGroup('transform_and_quality_checks', tooltip='Transform data and perform quality checks') as transform_and_quality_checks:

@@ -26,7 +26,7 @@ def generate_quality_report(staging_tables: dict, validation_results: dict):
         staging_tables: Dictionary of {table_name: DataFrame} *after* validation.
         validation_results: Dictionary containing metrics from the validation step.
     """
-    
+    REPORT_DIR = os.getenv("REPORT_DIR", "/opt/airflow/plugins/data/reports")
     os.makedirs(REPORT_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_file_name = f"data_quality_report_{timestamp}.md"

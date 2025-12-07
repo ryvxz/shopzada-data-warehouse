@@ -3,8 +3,6 @@ import logging
 from dotenv import load_dotenv, find_dotenv
 from typing import Dict
 from scripts.ingestion.data_ingestion.load_raw_data import ingest_folder
-from scripts.ingestion.data_quality.quality_checks import check_and_report_quality
-from scripts.ingestion.data_quality.generate_report import generate_quality_report
 
 # ------------- ENVIRONMENT SETUP ---------------
 load_dotenv(find_dotenv())  # Load environment variables from a .env file
@@ -37,17 +35,6 @@ def ingest_data() -> Dict[str, any]:
         raise
     return staging_tables
 
-def perform_quality_checks(staging_tables: Dict[str, any]) -> Dict[str, any]:
-    """Check and report data quality issues."""
-    try:
-        logger.info("Running data quality checks.")
-        staging_tables = check_and_report_quality(staging_tables)
-        logger.info("Data quality checks completed successfully.")
-    except Exception as e:
-        logger.error(f"Error during data quality checks: {e}")
-        raise
-    return staging_tables
-
 def stage_data(staging_tables: Dict[str, any]):
     """Save data to Parquet files in the staging directory."""
     os.makedirs(STAGING_DIR, exist_ok=True)
@@ -60,30 +47,15 @@ def stage_data(staging_tables: Dict[str, any]):
         logger.error(f"Error while staging data: {e}")
         raise
 
-def generate_quality_report_and_save(staging_tables: Dict[str, any]):
-    """Generate the data quality report."""
-    try:
-        generate_quality_report(staging_tables, validation_results={})
-        logger.info("Data quality report generated successfully.")
-    except Exception as e:
-        logger.error(f"Error while generating quality report: {e}")
-        raise
-
 def main():
-    """Main function to run the data pipeline."""
+    """Main function to run the data ingestion pipeline."""
     try:
         check_env_variables()
 
         # Step 1: Ingest data
         staging_tables = ingest_data()
 
-        # Step 2: Perform data quality checks
-        staging_tables = perform_quality_checks(staging_tables)
-
-        # Step 3: Generate quality report
-        generate_quality_report_and_save(staging_tables)
-
-        # Step 4: Stage the data as Parquet files
+        # Step 2: Stage the data as Parquet files
         stage_data(staging_tables)
     
     except Exception as e:
