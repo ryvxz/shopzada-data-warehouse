@@ -80,7 +80,3 @@ def check_and_report_quality(staging_tables: dict) -> dict:
         
     print("\n--- Data Quality Checks and Standardization Complete ---")
     return validated_tables
-
-# NOTE: The main orchestration script (orchestrator.py) will call this function.
-# Example usage in orchestrator.py:
-# staging_tables = check_and_report_quality(staging_tables)
