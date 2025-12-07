@@ -60,13 +60,24 @@ with DAG(
         transform_data = PythonOperator(
             task_id='transform_data',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'transformation', 'script_name': 'transform_data'},
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'transform'},
+            retries=DEFAULT_RETRIES
         )
         quality_checks = PythonOperator(
             task_id='quality_checks',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'transformation', 'script_name': 'quality_checks'},
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'quality_checks'},
+            retries=DEFAULT_RETRIES
         )
+        clean_preprocessed_files = PythonOperator(
+            task_id='clean_preprocessed_files',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'clean_preprocessed_files'},
+            retries=DEFAULT_RETRIES
+        )
+        transform_data >> quality_checks >> clean_preprocessed_files
+
+
 
     with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
         load_physical_model = EmptyOperator(task_id='load_physical_model')
