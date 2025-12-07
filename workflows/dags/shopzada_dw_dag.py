@@ -40,17 +40,17 @@ with DAG(
     start = EmptyOperator(task_id='start')
 
     with TaskGroup('source_staging', tooltip='Source data from dataset and stage it') as source_staging:
-        ingest_all_sources = BashOperator(
+        ingest_all_sources = PythonOperator(
             task_id='ingest_all_sources',
-            bash_command='python ingest.py',
-            cwd=f'{folder}/ingestion',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'load_to_parquet'},
             retries=DEFAULT_RETRIES
         )
 
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'ingest_to_sql'},
+            op_kwargs={'script_folder': 'ingestion', 'script_name': 'load_to_staging'},
             retries=DEFAULT_RETRIES
         )
         ingest_all_sources >> load_to_staging_db
