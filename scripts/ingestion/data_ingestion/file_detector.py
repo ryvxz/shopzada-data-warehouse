@@ -6,7 +6,7 @@ def detect_file_type(file_path):
 
     if ext in ["csv"]:
         return "csv"
-    if ext in ["xlsx", "xls"]:
+    if ext in ["xlsx"]:
         return "xlsx"
     if ext in ["json"]:
         return "json"
