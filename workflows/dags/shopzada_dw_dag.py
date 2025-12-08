@@ -86,48 +86,48 @@ with DAG(
 
 
 
-    # with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
-    #     load_physical_model = transform_data = PythonOperator(
-    #         task_id='load_physical_model',
-    #         python_callable=run_script,
-    #         op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-    #         retries=DEFAULT_RETRIES
-    #     )
+    with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
+        load_physical_model = transform_data = PythonOperator(
+            task_id='load_physical_model',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
 
-    # with TaskGroup('kimball_dw_bigquery_or_postgres', tooltip='Kimball dimensional model') as kimball_dw:
-    #     build_dimensions = transform_data = PythonOperator(
-    #         task_id='build_dimensions',
-    #         python_callable=run_script,
-    #         op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-    #         retries=DEFAULT_RETRIES
-    #     )
-    #     build_facts = transform_data = PythonOperator(
-    #         task_id='build_facts',
-    #         python_callable=run_script,
-    #         op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-    #         retries=DEFAULT_RETRIES
-    #     )
+    with TaskGroup('kimball_dw_bigquery_or_postgres', tooltip='Kimball dimensional model') as kimball_dw:
+        build_dimensions = transform_data = PythonOperator(
+            task_id='build_dimensions',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
+        build_facts = transform_data = PythonOperator(
+            task_id='build_facts',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
 
-    # with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
-    #     create_datamarts = EmptyOperator(task_id='create_datamarts')
-    #     create_views = EmptyOperator(task_id='create_views')
+    with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
+        create_datamarts = EmptyOperator(task_id='create_datamarts')
+        create_views = EmptyOperator(task_id='create_views')
 
-    # with TaskGroup('analytics_tableau', tooltip='Run analytics queries') as analytics:
-    #     run_analytics = EmptyOperator(task_id='run_analytics')
+    with TaskGroup('analytics_tableau', tooltip='Run analytics queries') as analytics:
+        run_analytics = EmptyOperator(task_id='run_analytics')
 
-    # with TaskGroup('presentation_tableau', tooltip='Load data for presentation layer') as presentation:
-    #     load_to_presentation = EmptyOperator(task_id='load_to_presentation')
+    with TaskGroup('presentation_tableau', tooltip='Load data for presentation layer') as presentation:
+        load_to_presentation = EmptyOperator(task_id='load_to_presentation')
 
     end = EmptyOperator(task_id='end')
 
     chain(
         start,
         source_staging,
-        # transform_and_quality_checks,
-        # load_to_dw,
-        # kimball_dw,
-        # datamarts_and_views,
-        # analytics,
-        # presentation,
+        transform_and_quality_checks,
+        load_to_dw,
+        kimball_dw,
+        datamarts_and_views,
+        analytics,
+        presentation,
         end,
     )
