@@ -6,4 +6,4 @@ def read_xlsx(file_path: str) -> pd.DataFrame:
         return df
     except Exception as e:
         print(f"Failed to read Excel file {file_path}: {e}")
-        return pd.DataFrame()  # Return empty DataFrame on error
+        return pd.DataFrame()
