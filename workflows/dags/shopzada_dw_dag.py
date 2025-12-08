@@ -87,11 +87,26 @@ with DAG(
 
 
     with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
-        load_physical_model = EmptyOperator(task_id='load_physical_model')
+        load_physical_model = transform_data = PythonOperator(
+            task_id='load_physical_model',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
 
     with TaskGroup('kimball_dw_bigquery_or_postgres', tooltip='Kimball dimensional model') as kimball_dw:
-        build_dimensions = EmptyOperator(task_id='build_dimensions')
-        build_facts = EmptyOperator(task_id='build_facts')
+        build_dimensions = transform_data = PythonOperator(
+            task_id='build_dimensions',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
+        build_facts = transform_data = PythonOperator(
+            task_id='build_facts',
+            python_callable=run_script,
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
+            retries=DEFAULT_RETRIES
+        )
 
     with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
         create_datamarts = EmptyOperator(task_id='create_datamarts')
