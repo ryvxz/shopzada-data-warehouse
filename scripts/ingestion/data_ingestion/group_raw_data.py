@@ -47,7 +47,14 @@ def merge_files(staging_tables: Dict[str, any], file_name_1: str, file_name_2: s
         # Check if the file names exist in the dictionary
         if file_name_1 not in staging_tables or file_name_2 not in staging_tables:
             raise KeyError(f"One or both of the keys '{file_name_1}' or '{file_name_2}' do not exist in the dictionary.")
+
+         # Get the DataFrames
+        df1, df2 = staging_tables[file_name_1], staging_tables[file_name_2]
         
+        # Check for empty DataFrames
+        if df1.empty or df2.empty:
+            raise ValueError(f"One or both of the DataFrames are empty: '{file_name_1}', '{file_name_2}'")
+            
         # Merging the two DataFrames (df + df1)
         staging_tables[new_file_name] = pd.concat([staging_tables[file_name_1], staging_tables[file_name_2]], ignore_index=True)
         
@@ -62,6 +69,8 @@ def merge_files(staging_tables: Dict[str, any], file_name_1: str, file_name_2: s
 
     except KeyError as e:
         print(f"KeyError: {e}")
+    except ValueError as e:
+        print(f"ValueError: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
 
