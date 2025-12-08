@@ -9,6 +9,7 @@ from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.sdk import chain, DAG, TaskGroup
+from airflow.providers.standard.sensors.filesystem import FileSensor
 
 
 from dotenv import load_dotenv
@@ -36,6 +37,8 @@ with DAG(
     catchup=False,
     schedule=None,
     tags=['shopzada', 'data-warehouse'],
+    is_paused_upon_creation=False,
+    max_active_runs=1,
 ) as dag:
     start = EmptyOperator(task_id='start')
 
