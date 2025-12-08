@@ -31,7 +31,7 @@ def load_file(file_path, file_type):
     elif file_type == "parquet":
         return parquet_reader.read_parquet(file_path)
     else:
-        raise ValueError(f"Unsupported file type: {file_type}")
+        raise ValueError(f"Unsupported file type: {file_path}")
 
 # ------------- FOLDER INGESTION FUNCTION ---------------
 def ingest_folder(folder_path):
