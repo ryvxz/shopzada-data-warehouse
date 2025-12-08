@@ -3,3 +3,4 @@ workflows/dags/__pycache__/
 workflows/dags_initial/__pycache__/
 logs/
 __pycache__/
+.venv
