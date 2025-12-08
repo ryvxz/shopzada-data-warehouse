@@ -3,7 +3,7 @@ import logging
 from dotenv import load_dotenv, find_dotenv
 from typing import Dict
 from scripts.ingestion.data_ingestion.load_raw_data import ingest_folder
-
+from scripts.ingestion.data_ingestion.group_raw_data import check_file_domain,merge_files
 # ------------- ENVIRONMENT SETUP ---------------
 load_dotenv(find_dotenv())  # Load environment variables from a .env file
 
@@ -35,6 +35,55 @@ def ingest_data() -> Dict[str, any]:
         raise
     return staging_tables
 
+def group_tables(staging_tables: Dict[str, any]):
+    processed_files = set()  # Keep track of the files that have already been processed
+    
+    # Iterate over a snapshot (list) of the dictionary keys to avoid modifying the dictionary while iterating
+    for file_name in list(staging_tables.keys()):
+        try:
+            df = staging_tables[file_name]  # Try to access the DataFrame for the current file
+        except KeyError:
+            # If the file doesn't exist anymore (because it was merged and removed), log and continue
+            print(f"File '{file_name}' does not exist anymore (likely merged). Skipping.")
+            continue  # Skip to the next file
+        
+        # Get the headers of the DataFrame
+        headers = list(df.columns)
+        
+        # Check the domain for this file
+        domain = check_file_domain(headers)
+        
+        if domain == "Unknown file type or unrecognized headers":
+            print(f"Skipping file {file_name}: Unrecognized headers.")
+            continue
+        
+        # Check if we have another file in the same domain
+        matching_files = [other_file for other_file in staging_tables if other_file != file_name and other_file not in processed_files]
+        
+        for other_file in matching_files:
+            # Get headers of the other file
+            other_headers = list(staging_tables[other_file].columns)
+            other_domain = check_file_domain(other_headers)
+
+            # If they belong to the same domain, merge them
+            if domain == other_domain:
+                try:
+                    # Merge the two DataFrames
+                    new_file_name = domain
+                    merge_files(staging_tables, file_name, other_file, new_file_name)
+                    
+                    # Mark these files as processed
+                    processed_files.add(file_name)
+                    processed_files.add(other_file)
+                    
+                    break  # Stop looking for more files to merge with this one
+                except Exception as e:
+                    print(f"Error merging {file_name} and {other_file}: {e}")
+    
+    print("Grouping and merging completed.")
+
+
+
 def stage_data(staging_tables: Dict[str, any]):
     """Save data to Parquet files in the staging directory."""
     os.makedirs(STAGING_DIR, exist_ok=True)
@@ -55,9 +104,13 @@ def main():
         # Step 1: Ingest data
         staging_tables = ingest_data()
 
-        # Step 2: Stage the data as Parquet files
+        # Step 2: Group tables
+        group_tables(staging_tables)
+
+        # Step 3: Stage the data as Parquet files
         stage_data(staging_tables)
-    
+
+
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}")
         raise
