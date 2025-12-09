@@ -1,17 +1,22 @@
 from sqlalchemy import create_engine, text
 import os
-
+DB_USER='postgres'
+DB_PASSWORD='shopzada123'
+DB_HOST='db_staging'
+DB_PORT='5432'
+DB_NAME='shopzada_staging'
 # --- Configuration ---
-user = os.getenv("DB_USER")
-password = os.getenv("DB_PASSWORD")
-host = os.getenv("DB_HOST")
-port = os.getenv("DB_PORT")
-db = os.getenv("DB_NAME")
+user = DB_USER
+password = DB_PASSWORD
+host = DB_HOST
+port = DB_PORT
+db = DB_NAME
 
 # Create engine for the postgresql (moved inside main or kept global if needed across modules)
 ENGINE = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
 
 def main():
+
     # Table name (replace with your actual table name)
     table_name = "customer_user_credit_card"
     

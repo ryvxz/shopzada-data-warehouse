@@ -3,26 +3,26 @@ import pandas as pd
 
 def check_file_domain(headers: list):
     # Define your categories and their associated headers
-    business_files = {"product_list": ['product_id', 'product_name', 'product_type', 'price']}
+    business_files = {"business_product_list": ['product_id', 'product_name', 'product_type', 'price']}
     customer_files = {
-        'user_credit_card': ['user_id', 'name', 'credit_card_number', 'issuing_bank'],
-        'user_data': ['user_id', 'creation_date', 'name', 'street', 'state', 'city', 'country', 'birthdate', 'gender', 'device_address', 'user_type'],
-        'user_job': ['user_id', 'name', 'job_title', 'job_level'],
+        'customer_user_credit_card': ['user_id', 'name', 'credit_card_number', 'issuing_bank'],
+        'customer_user_data': ['user_id', 'creation_date', 'name', 'street', 'state', 'city', 'country', 'birthdate', 'gender', 'device_address', 'user_type'],
+        'customer_user_job': ['user_id', 'name', 'job_title', 'job_level'],
     }
     enterprise_files = {
-        'merchant_data': ['merchant_id', 'creation_date', 'name', 'street', 'state', 'city', 'country', 'contact_number'],
-        'order_with_merchant_data': ['order_id', 'merchant_id', 'staff_id'],
-        'staff_data': ['staff_id', 'name', 'job_level', 'street', 'state', 'city', 'country', 'contact_number', 'creation_date'],
+        'enterprise_merchant_data': ['merchant_id', 'creation_date', 'name', 'street', 'state', 'city', 'country', 'contact_number'],
+        'enterprise_order_with_merchant_data': ['order_id', 'merchant_id', 'staff_id'],
+        'enterprise_staff_data': ['staff_id', 'name', 'job_level', 'street', 'state', 'city', 'country', 'contact_number', 'creation_date'],
     }
     marketing_files = {
-        'campaign_data': ['campaign_id', 'campaign_name', 'campaign_description', 'discount'],
-        'transactional_campaign_data': ['transaction_date', 'campaign_id', 'order_id', 'estimated arrival', 'availed'],
+        'marketing_campaign_data': ['campaign_id', 'campaign_name', 'campaign_description', 'discount'],
+        'marketing_transactional_campaign_data': ['transaction_date', 'campaign_id', 'order_id', 'estimated arrival', 'availed'],
     }
     operations_files = {
-        'line_item_data_prices': ['order_id', 'price', 'quantity'],
-        'line_item_data_products': ['order_id', 'product_name', 'product_id'],
-        'order_data': ['order_id', 'user_id', 'estimated arrival', 'transaction_date'],
-        'order_delays': ['order_id', 'delay in days'],
+        'operations_line_item_data_prices': ['order_id', 'price', 'quantity'],
+        'operations_line_item_data_products': ['order_id', 'product_name', 'product_id'],
+        'operations_order_data': ['order_id', 'user_id', 'estimated arrival', 'transaction_date'],
+        'operations_order_delays': ['order_id', 'delay in days'],
     }
 
     # Combine all file categories into one dictionary
