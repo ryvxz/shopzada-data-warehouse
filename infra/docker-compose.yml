@@ -89,16 +89,55 @@ services:
     networks:
       - shopzada-net
 
+  # 3. Metabase - BI Dashboard Service for Data Visualization
+  metabase:
+    image: metabase/metabase:latest
+    container_name: shopzada-metabase
+    hostname: metabase
+    restart: always
+    ports:
+      - "3000:3000"  # Web UI: http://localhost:3000
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=metabase
+      - MB_DB_PORT=5432
+      - MB_DB_USER=metabase
+      - MB_DB_PASS=metabase123
+      - MB_DB_HOST=metabase-db
+    networks:
+      - shopzada-net
+    depends_on:
+      metabase-db:
+        condition: service_healthy
+      db_dwh:
+        condition: service_healthy
+      db_staging:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
- # 6. BI Dashboard Service (Placeholder) - Commented out
-  # dashboard-service:
-  #   image: placeholder/bi-tool:latest 
-  #   container_name: shopzada-dashboard
-  #   ports:
-  #     - "3000:3000" 
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  # 4. Metabase Database - Stores Metabase metadata (dashboards, users, etc.)
+  metabase-db:
+    image: postgres:16-alpine
+    container_name: shopzada-metabase-db
+    restart: always
+    environment:
+      POSTGRES_USER: metabase
+      POSTGRES_PASSWORD: metabase123
+      POSTGRES_DB: metabase
+    volumes:
+      - metabase_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metabase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shopzada-net
 
   #===========================AIRFLOW SERVICES========================================
 
@@ -353,6 +392,8 @@ volumes:
     # Volume to persist PostgreSQL data for DWH
   postgres_staging_data:
     # Volume to persist PostgreSQL data for Staging
+  metabase_db_data:
+    # Volume to persist Metabase metadata (dashboards, users, connections)
   logs:
     # Volume to persist Airflow logs
   plugins:
