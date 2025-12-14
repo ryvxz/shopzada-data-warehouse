@@ -14,22 +14,88 @@ from airflow.providers.standard.sensors.filesystem import FileSensor
 
 from dotenv import load_dotenv
 import os
+import logging
 
 load_dotenv()
+
+# =============================================================================
+# ENVIRONMENT VARIABLES CONFIGURATION
+# =============================================================================
+# This DAG supports the following environment variables for customization:
+#
+# Data Configuration:
+# - DATA_FOLDER: Base directory for data files (default: /opt/airflow/plugins/data)
+# - DEFAULT_RETRIES: Number of retry attempts for failed tasks (default: 3)
+#
+# Script Configuration:
+# - DEFAULT_SCRIPTS_FOLDER: Base directory for Python scripts
+# - INGESTION_FOLDER: Subfolder for ingestion scripts (default: ingestion)
+# - TRANSFORM_FOLDER: Subfolder for transformation scripts (default: ingestion/transform)
+# - [Script name variables]: Override specific script filenames
+#
+# File Sensor Configuration:
+# - FILE_SENSOR_SCHEDULE_MINUTES: Sensor check interval in minutes (default: 2)
+# - FILE_SENSOR_POKE_INTERVAL: FileSensor poke interval in seconds (default: 10)
+# - FILE_SENSOR_TIMEOUT: FileSensor timeout in seconds (default: 60)
+# - FILE_SENSOR_SOURCE_DIR: Directory to monitor for new files (default: new)
+# - FILE_SENSOR_DEST_DIR: Directory to move processed files (default: raw)
+# - FILE_SENSOR_MINDEPTH: Minimum depth for file search (default: 1)
+# - MAIN_DAG_ID: DAG ID to trigger when files are detected
+# =============================================================================
+
+# Data Configuration
+DATA_FOLDER = os.getenv("DATA_FOLDER", "/opt/airflow/plugins/data")
+DEFAULT_RETRIES = int(os.getenv("DEFAULT_RETRIES", 3))
+
+# Script Configuration
+DEFAULT_SCRIPTS_FOLDER = os.getenv("DEFAULT_SCRIPTS_FOLDER", "/opt/airflow/plugins/scripts")
+INGESTION_FOLDER = os.getenv("INGESTION_FOLDER", "ingestion")
+TRANSFORM_FOLDER = os.getenv("TRANSFORM_FOLDER", "ingestion/transform")
+
+# Script Names
+LOAD_TO_PARQUET_SCRIPT = os.getenv("LOAD_TO_PARQUET_SCRIPT", "load_to_parquet")
+DATA_QUALITY_CHECKS_SCRIPT = os.getenv("DATA_QUALITY_CHECKS_SCRIPT", "data_quality_checks")
+LOAD_TO_STAGING_SCRIPT = os.getenv("LOAD_TO_STAGING_SCRIPT", "load_to_staging")
+TRANSFORM_SCRIPT = os.getenv("TRANSFORM_SCRIPT", "transform")
+QUALITY_CHECKS_SCRIPT = os.getenv("QUALITY_CHECKS_SCRIPT", "quality_checks")
+CLEAN_PREPROCESSED_FILES_SCRIPT = os.getenv("CLEAN_PREPROCESSED_FILES_SCRIPT", "clean_preprocessed_files")
+
+# File Sensor Configuration (for validation)
+FILE_SENSOR_SCHEDULE_MINUTES = int(os.getenv("FILE_SENSOR_SCHEDULE_MINUTES", "2"))
+FILE_SENSOR_POKE_INTERVAL = int(os.getenv("FILE_SENSOR_POKE_INTERVAL", "10"))
+FILE_SENSOR_TIMEOUT = int(os.getenv("FILE_SENSOR_TIMEOUT", "60"))
+FILE_SENSOR_MINDEPTH = int(os.getenv("FILE_SENSOR_MINDEPTH", "1"))
+
+def validate_environment_variables():
+    """Validate critical environment variables with warnings and minimal safe fallbacks."""
+    # Validate positive integers with minimal safe fallbacks
+    validations = [
+        ("DEFAULT_RETRIES", DEFAULT_RETRIES, 1, "retries"),
+        ("FILE_SENSOR_SCHEDULE_MINUTES", FILE_SENSOR_SCHEDULE_MINUTES, 1, "sensor schedule"),
+        ("FILE_SENSOR_POKE_INTERVAL", FILE_SENSOR_POKE_INTERVAL, 5, "poke interval"),
+        ("FILE_SENSOR_TIMEOUT", FILE_SENSOR_TIMEOUT, 30, "sensor timeout"),
+        ("FILE_SENSOR_MINDEPTH", FILE_SENSOR_MINDEPTH, 1, "file mindepth")
+    ]
+    
+    for var_name, var_value, min_safe, description in validations:
+        if var_value <= 0:
+            logging.warning(f"Warning: {var_name} must be positive integer, got {var_value}. Using minimal safe value: {min_safe}")
+            globals()[var_name] = min_safe
+
+# Validate environment variables at DAG import time
+validate_environment_variables()
 
 folder = os.getenv("SCRIPTS_FOLDER")
 
 def run_script(script_folder: str, script_name: str):
     """A callable to run scripts from a specified script folder."""
-    scripts_path = Path(folder or "/opt/airflow/plugins/scripts").joinpath(script_folder)
+    scripts_path = Path(folder or DEFAULT_SCRIPTS_FOLDER).joinpath(script_folder)
     sys.path.insert(0, str(scripts_path))
     try:
         module = import_module(script_name)
         module.main()  # Assuming each script has a main() function
     finally:
         sys.path.pop(0)
-
-DEFAULT_RETRIES = int(os.getenv("DEFAULT_RETRIES", 3))
 
 with DAG(
     dag_id='shopzada_data_warehouse',
@@ -46,21 +112,21 @@ with DAG(
         ingest_all_sources = PythonOperator(
             task_id='ingest_all_sources',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'load_to_parquet'},
+            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': LOAD_TO_PARQUET_SCRIPT},
             retries=DEFAULT_RETRIES
         )
 
         data_quality_checks_and_report = PythonOperator(
             task_id = 'data_quality_checks_and_report',
             python_callable = run_script,
-            op_kwargs = {'script_folder':'ingestion','script_name':'data_quality_checks'},
+            op_kwargs = {'script_folder': INGESTION_FOLDER, 'script_name': DATA_QUALITY_CHECKS_SCRIPT},
             retries = DEFAULT_RETRIES
         )
 
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'load_to_staging'},
+            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': LOAD_TO_STAGING_SCRIPT},
             retries=DEFAULT_RETRIES
         )
         ingest_all_sources >> data_quality_checks_and_report >> load_to_staging_db
@@ -70,19 +136,19 @@ with DAG(
         transform_data = PythonOperator(
             task_id='transform_data',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'transform'},
+            op_kwargs={'script_folder': TRANSFORM_FOLDER, 'script_name': TRANSFORM_SCRIPT},
             retries=DEFAULT_RETRIES
         )
         quality_checks = PythonOperator(
             task_id='quality_checks',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'quality_checks'},
+            op_kwargs={'script_folder': TRANSFORM_FOLDER, 'script_name': QUALITY_CHECKS_SCRIPT},
             retries=DEFAULT_RETRIES
         )
         clean_preprocessed_files = PythonOperator(
             task_id='clean_preprocessed_files',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion', 'script_name': 'clean_preprocessed_files'},
+            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': CLEAN_PREPROCESSED_FILES_SCRIPT},
             retries=DEFAULT_RETRIES
         )
         transform_data >> quality_checks >> clean_preprocessed_files
