@@ -79,6 +79,17 @@ def generate_quality_report(staging_tables: dict, validation_results: dict):
         report_content.append(df.head(5).to_markdown(index=False))
         report_content.append("\n\n---\n")
 
+        # D. Unique values for columns
+        report_content.append("### Some Unique Values\n\n")
+        try:
+            for i in df.columns:
+                if df[i].nunique() < 50:
+                    report_content.append(f"### Column {i} unique values:\n")
+                    report_content.append(f"{df[i].unique()}\n")
+                    report_content.append(f"\n")
+        except Exception as e:
+            print(f"Error in getting unique values {e}")
+
     # Write the report file
     with open(report_path, 'w') as f:
         f.write("\n".join(report_content))

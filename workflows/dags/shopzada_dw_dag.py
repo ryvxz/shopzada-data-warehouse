@@ -136,7 +136,7 @@ with DAG(
         transform_data = PythonOperator(
             task_id='transform_data',
             python_callable=run_script,
-            op_kwargs={'script_folder': TRANSFORM_FOLDER, 'script_name': TRANSFORM_SCRIPT},
+            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'transform_tables'},
             retries=DEFAULT_RETRIES
         )
         quality_checks = PythonOperator(
