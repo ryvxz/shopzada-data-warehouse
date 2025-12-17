@@ -72,7 +72,7 @@ with DAG(
     catchup=False,
     schedule=timedelta(minutes=FILE_SENSOR_SCHEDULE_MINUTES),
     tags=['shopzada', 'data-warehouse', 'sensor'],
-    #is_paused_upon_creation=False,
+    is_paused_upon_creation=True,
     max_active_runs=1,
     
 ) as dag:

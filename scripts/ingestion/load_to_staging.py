@@ -13,9 +13,9 @@ load_dotenv(find_dotenv())
 # --- Configuration ---
 user = os.getenv("DB_USER")
 password = os.getenv("DB_PASSWORD")
-host = os.getenv("DB_HOST")
+host = os.getenv("DB_STAGING_HOST")
 port = os.getenv("DB_PORT")
-db = os.getenv("DB_NAME")
+db = os.getenv("DB_STAGING_NAME")
 
 # This should be the directory path
 FILES_FOR_STAGING_DIR = os.getenv("FILES_FOR_STAGING_DIR")
