@@ -1,14 +1,15 @@
 import pandas as pd
-from pyarrow.parquet import ParquetFile
 import pyarrow as pa
-from sqlalchemy import create_engine
-from time import time
+from pyarrow.parquet import ParquetFile
+from sqlalchemy import create_engine, event
 import os
-
+import io
+import csv
+from time import time
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
-
 
 # --- Configuration ---
 user = os.getenv("DB_USER")
@@ -16,135 +17,121 @@ password = os.getenv("DB_PASSWORD")
 host = os.getenv("DB_STAGING_HOST")
 port = os.getenv("DB_PORT")
 db = os.getenv("DB_STAGING_NAME")
-
-# This should be the directory path
 FILES_FOR_STAGING_DIR = os.getenv("FILES_FOR_STAGING_DIR")
-
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 100000))
 
-# Create engine for the postgresql (moved inside main or kept global if needed across modules)
-ENGINE = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
+# Create engine with a connection pool large enough for parallel processing
+ENGINE = create_engine(
+    f'postgresql://{user}:{password}@{host}:{port}/{db}',
+    pool_size=10,
+    max_overflow=20
+)
+
+# --- High-Performance COPY Function ---
+
+def psql_insert_copy(table, conn, keys, data_iter):
+    """
+    Optimized inserter using PostgreSQL COPY command.
+    Bypasses standard INSERT overhead.
+    """
+    dbapi_conn = conn.connection
+    with dbapi_conn.cursor() as cur:
+        s_buf = io.StringIO()
+        writer = csv.writer(s_buf)
+        writer.writerows(data_iter)
+        s_buf.seek(0)
+
+        columns = ', '.join('"{}"'.format(k) for k in keys)
+        table_name = f'"{table.name}"'
+        if table.schema:
+            table_name = f'{table.schema}.{table_name}'
+
+        sql = f'COPY {table_name} ({columns}) FROM STDIN WITH CSV'
+        cur.copy_expert(sql=sql, file=s_buf)
 
 # --- Core Functions ---
 
-# Process all parquet files then store into a dictionary {file_name: DataFrame}
-def process_all_parquet_files(directory):
-    #Reads all Parquet files in a directory into memory as DataFrames.
-    df_for_staging = {}
-    
-    # Process files
-    for file_name in os.listdir(directory):
-        if file_name.endswith('.parquet'):
-            file_path = os.path.join(directory, file_name)
-            df = process_parquet_file(file_path)
-
-            # Put df into the dictionary with the file_name as the key
-            if df is not None:
-                # IMPORTANT: Storing large DataFrames in memory is generally avoided. 
-                # The ingest function below uses an optimized, chunk-based approach instead.
-                df_for_staging[file_name] = df
-                
-    return df_for_staging
-
-# Process parquet file, turn it into a DataFrame (simple read)
-def process_parquet_file(file_path):
-    #Reads a single Parquet file into a Pandas DataFrame.
+def create_table_schema(file_path, table_name):
+    """Creates the table schema using a 1-row sample to minimize memory."""
     try:
-        df = pd.read_parquet(file_path)
-        return df
-    except Exception as e:
-        print(f"Error processing file {file_path}: {e}")
-        return None
-
-# --- Ingestion Functions ---
-
-def create_table_schema(file_path, table_name, engine):
-    #Creates the table schema in the database if it does not exist.
-    
-    # Read only the schema using ParquetFile
-    try:
-        # Use ParquetFile to get the schema without reading all data into memory
         pf = ParquetFile(file_path)
-        
-        # Read a small batch to get a temporary DataFrame for schema creation
-        df_iter = pf.iter_batches(batch_size=1) 
-        temp_df = pa.Table.from_batches([next(df_iter)]).to_pandas()
+        # Just grab the first batch and take 1 row
+        first_batch = next(pf.iter_batches(batch_size=1))
+        temp_df = pa.Table.from_batches([first_batch]).to_pandas()
 
-        # Create table structure (if_exists='fail' is crucial here)
-        temp_df.head(n=0).to_sql(name=table_name, con=engine, if_exists='fail', index=False)
-        print(f"Table '{table_name}' created successfully.")
-        
+        with ENGINE.begin() as conn:
+            temp_df.head(0).to_sql(name=table_name, con=conn, if_exists='fail', index=False)
+        print(f"✅ Table '{table_name}' created.")
     except Exception as e:
-        # Check if the table already exists, which is an expected error
-        if "already exists" in str(e):
-             print(f"Table '{table_name}' already exists, skipping creation.")
+        if "already exists" in str(e).lower():
+            print(f"ℹ️ Table '{table_name}' already exists.")
         else:
-            print(f"An unexpected error occurred during table creation for {table_name}: {e}")
+            print(f"❌ Error creating schema for {table_name}: {e}")
 
-def ingest_file_in_chunks(file_path, table_name, engine):
-    print(f"\n--- Starting ingestion for file: {os.path.basename(file_path)} into table: {table_name} ---")
+def ingest_file(file_name):
+    """Worker function to process a single file."""
+    file_path = os.path.join(FILES_FOR_STAGING_DIR, file_name)
+    table_name = file_name.replace('.parquet', '').lower()
     
-    t_start_total = time()
+    # 1. Ensure Table Exists
+    create_table_schema(file_path, table_name)
+    
+    # 2. Bulk Ingest
+    print(f"🚀 Starting: {file_name}")
+    t_start = time()
     rows_inserted = 0
     
     try:
         pf = ParquetFile(file_path)
-        # Use iter_batches to read data in chunks directly from the Parquet file
-        df_iter = pf.iter_batches(batch_size=BATCH_SIZE)
-        
-        while True:
-            t_start_chunk = time()
-            
-            # Get the next batch of data
-            try:
-                batch = next(df_iter)
-            except StopIteration:
-                break # All chunks have been processed
-
-            # Convert pyarrow Batch to pandas DataFrame
+        # Use the generator to stream batches from disk
+        for batch in pf.iter_batches(batch_size=BATCH_SIZE):
             df = pa.Table.from_batches([batch]).to_pandas()
             
-            # Append chunk to the PostgreSQL table
-            df.to_sql(name=table_name, con=engine, if_exists='append', index=False)
+            # Use the psql_insert_copy method for speed
+            with ENGINE.begin() as conn:
+                df.to_sql(
+                    name=table_name, 
+                    con=conn, 
+                    if_exists='append', 
+                    index=False, 
+                    method=psql_insert_copy
+                )
+            rows_inserted += len(df)
             
-            rows_in_chunk = len(df)
-            rows_inserted += rows_in_chunk
-            t_end_chunk = time()
-            
-            print(f'  Inserted chunk of {rows_in_chunk} rows, took {t_end_chunk - t_start_chunk:.3f} seconds.')
-            
+        t_end = time()
+        print(f"✔️ Finished {table_name}: {rows_inserted} rows in {t_end - t_start:.2f}s")
     except Exception as e:
-        print(f"An error occurred during chunked ingestion of {table_name}: {e}")
+        print(f"❌ Error ingesting {file_name}: {e}")
 
-    t_end_total = time()
-    print(f"--- Finished ingestion for {table_name}. Total rows: {rows_inserted}. Total time: {t_end_total - t_start_total:.3f} seconds. ---")
-
+# --- Execution ---
 
 def main():
-    """Main function to orchestrate the staging process."""
-    
-    # Check the database connection
+    if not os.path.exists(FILES_FOR_STAGING_DIR):
+        print(f"FATAL: Directory {FILES_FOR_STAGING_DIR} not found.")
+        return
+
+    # Check Connection
     try:
-        with ENGINE.connect() as connection:
-            print("Successfully connected to the PostgreSQL staging database.")
+        with ENGINE.connect() as conn:
+            print("Connected to PostgreSQL.")
     except Exception as e:
-        print(f"FATAL: Could not connect to the database. Error: {e}")
-        return # Exit if connection fails
+        print(f"FATAL: Connection failed: {e}")
+        return
 
-    # Process files in the staging directory
-    for file_name in os.listdir(FILES_FOR_STAGING_DIR):
-        if file_name.endswith('.parquet'):
-            
-            file_path = os.path.join(FILES_FOR_STAGING_DIR or "/opt/airflow/plugins/data/staging", file_name)
-            
-            table_name = file_name.replace('.parquet', '').lower()
-            
-            create_table_schema(file_path, table_name, ENGINE)
-            
-            ingest_file_in_chunks(file_path, table_name, ENGINE)
-            
-    print("\nAll files processed and ingested into the staging layer.")
+    # Get list of files
+    files = [f for f in os.listdir(FILES_FOR_STAGING_DIR) if f.endswith('.parquet')]
+    
+    if not files:
+        print("No Parquet files found.")
+        return
 
+    print(f"Found {len(files)} files. Starting parallel ingestion...")
+
+    # Parallelize file processing (adjust max_workers based on your DB capacity)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(ingest_file, files)
+
+    print("\nAll files processed successfully.")
 
 if __name__ == "__main__":
     main()
