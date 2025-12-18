@@ -40,7 +40,7 @@ def load_dim_staff(staging_engine,dwh_engine):
     try:
         with dwh_engine.begin() as conn:
             # 1. Load transformation into a temporary work table
-            df_dim.to_sql("temp_staff_load", conn, if_exists="replace", index=False)
+            df_dim.to_sql("temp_staff_sync", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -48,7 +48,7 @@ def load_dim_staff(staging_engine,dwh_engine):
                 -- Insert new records that don't exist in dim_staff
                 INSERT INTO dim_staff (staff_id, StaffName, JobLevel, HireDate, State, City, Street)
                 SELECT t.staff_id, t.StaffName, t.JobLevel, t.HireDate, t.State, t.City, t.Street
-                FROM temp_staff_load t
+                FROM temp_staff_sync t
                 WHERE NOT EXISTS (
                     SELECT 1 FROM dim_staff d WHERE d.staff_id = t.staff_id
                 )
@@ -63,7 +63,7 @@ def load_dim_staff(staging_engine,dwh_engine):
                 City = t.City,
                 Street = t.Street,
                 last_updated = CURRENT_TIMESTAMP
-            FROM temp_staff_load t
+            FROM temp_staff_sync t
             WHERE d.staff_id = t.staff_id
             AND NOT EXISTS (SELECT 1 FROM upsert u WHERE u.staff_id = d.staff_id);
             """

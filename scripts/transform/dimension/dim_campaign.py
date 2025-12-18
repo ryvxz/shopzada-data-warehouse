@@ -37,7 +37,7 @@ def load_dim_campaign(staging_engine,dwh_engine):
     try:
         with dwh_engine.begin() as conn:
             # Load the transformed data into the temp table
-            df_dim.to_sql("temp_campaign_staging", conn, if_exists="replace", index=False)
+            df_dim.to_sql("temp_campaign_sync", conn, if_exists="replace", index=False)
 
             # PostgreSQL-friendly upsert query
             sql_upsert = """
@@ -45,7 +45,7 @@ def load_dim_campaign(staging_engine,dwh_engine):
                 -- Insert new records from staging table into the dim_campaign table
                 INSERT INTO dim_campaign (campaign_id, CampaignName, CampaignDescription, CampaignDiscountRate)
                 SELECT s.campaign_id, s.CampaignName, s.CampaignDescription, s.CampaignDiscountRate
-                FROM temp_campaign_staging s
+                FROM temp_campaign_sync s
                 WHERE NOT EXISTS (
                     SELECT 1 FROM dim_campaign d WHERE d.campaign_id = s.campaign_id
                 )
@@ -56,7 +56,7 @@ def load_dim_campaign(staging_engine,dwh_engine):
             SET CampaignName = s.CampaignName,
                 CampaignDiscountRate = s.CampaignDiscountRate,
                 last_updated = CURRENT_TIMESTAMP
-            FROM temp_campaign_staging s
+            FROM temp_campaign_sync s
             WHERE d.campaign_id = s.campaign_id
             AND NOT EXISTS (SELECT 1 FROM upsert u WHERE u.campaign_id = d.campaign_id);
             """
@@ -64,7 +64,7 @@ def load_dim_campaign(staging_engine,dwh_engine):
             # Execute the upsert SQL
             conn.execute(text(sql_upsert))
         
-        print("DIM_CAMPAIGN load completed successfully.")
+        print("DIM_CAMPAIGN successfully synchronized.")
         
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN load: {e}")

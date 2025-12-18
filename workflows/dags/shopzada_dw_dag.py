@@ -113,6 +113,7 @@ with DAG(
     max_active_runs=1,
 ) as dag:
     start = EmptyOperator(task_id='start')
+    
 
     with TaskGroup('source_staging', tooltip='Source data from dataset and stage it') as source_staging:
 
@@ -199,10 +200,21 @@ with DAG(
             )
             dim_tasks.append(task)
 
+         # All tasks in the list run in parallel, then trigger the clean task
+        create_fact_tables >> fact_tasks 
+
+    with TaskGroup('cleanup_temp_tables', tooltip='Cleanup temporary tables') as cleanup_temp_table:
+        cleanup_temp_tables = PythonOperator(
+            task_id='cleanup_temp_tables',
+            python_callable=run_script,
+            op_kwargs={'script_folder': LOADING_FOLDER, 'script_name': "cleanup"},
+            retries=DEFAULT_RETRIES
+        )
+
+        cleanup_temp_tables
         
 
-        # All tasks in the list run in parallel, then trigger the clean task
-        create_fact_tables >> fact_tasks 
+        
 
 
     # with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
@@ -222,6 +234,7 @@ with DAG(
         source_staging,
         transform_and_load_dim,
         transform_and_load_fact,
+        cleanup_temp_table,
         # datamarts_and_views,
         # analytics,
         # presentation,

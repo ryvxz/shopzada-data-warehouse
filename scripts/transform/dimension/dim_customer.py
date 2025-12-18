@@ -38,7 +38,7 @@ def load_dim_customer(staging_engine,dwh_engine):
     try:
         with dwh_engine.begin() as conn:
             # 1. Load the joined data into a temporary table
-            df_dim.to_sql("temp_customer_load", conn, if_exists="replace", index=False)
+            df_dim.to_sql("temp_customer_sync", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -46,7 +46,7 @@ def load_dim_customer(staging_engine,dwh_engine):
                 -- Insert new records that don't exist in dim_customer
                 INSERT INTO dim_customer (customer_id, CustomerName, JobTitle, JobLevel, CreditCardType)
                 SELECT t.customer_id, t.CustomerName, t.JobTitle, t.JobLevel, t.CreditCardType
-                FROM temp_customer_load t
+                FROM temp_customer_sync t
                 WHERE NOT EXISTS (
                     SELECT 1 FROM dim_customer d WHERE d.customer_id = t.customer_id
                 )
@@ -60,7 +60,7 @@ def load_dim_customer(staging_engine,dwh_engine):
                 JobLevel = t.JobLevel,
                 CreditCardType = t.CreditCardType,
                 last_updated = CURRENT_TIMESTAMP
-            FROM temp_customer_load t
+            FROM temp_customer_sync t
             WHERE d.customer_id = t.customer_id
             AND NOT EXISTS (SELECT 1 FROM upsert u WHERE u.customer_id = d.customer_id);
             """

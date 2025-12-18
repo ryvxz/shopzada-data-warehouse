@@ -2,102 +2,78 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 import os
 
-# 1. Define your connection details
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_STAGING_HOST = os.getenv('DB_STAGING_HOST') 
-DB_DWH_HOST = os.getenv('DB_DWH_HOST')
-DB_PORT = os.getenv('DB_PORT')
-DB_STAGING_NAME = os.getenv('DB_STAGING_NAME')
-DB_DWH_NAME = os.getenv('DB_DWH_NAME')
-
-def load_fact_order_line_item(staging_engine, dwh_engine):
-    print("Starting FACT_ORDER_LINE_ITEM load...")
-
-    # STEP 1: Transform / Extract from Staging
-    # We use ROW_NUMBER to join Products and Prices cleanly (avoiding duplicates)
-    transformation_query = """
-    WITH prod_cte AS (
-        SELECT order_id, product_id, 
-        ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY product_id) as rn 
-        FROM operations_line_item_data_products
-    ),
-    price_cte AS (
-        SELECT order_id, quantity, price, 
-        ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY price) as rn 
-        FROM operations_line_item_data_prices
-    )
-    SELECT 
-        o.order_id,
-        o.user_id,
-        prod.product_id,
-        map.merchant_id,
-        map.staff_id,
-        o.transaction_date,
-        price.quantity::INTEGER as quantity,
-        price.price::DECIMAL(10,2) as price
-    FROM operations_order_data o
-    JOIN prod_cte prod ON o.order_id = prod.order_id
-    JOIN price_cte price ON o.order_id = price.order_id AND prod.rn = price.rn
-    LEFT JOIN enterprise_order_with_merchant_data map ON o.order_id = map.order_id;
-    """
-
-    try:
-        with staging_engine.connect() as connection:
-            df_fact = pd.read_sql(text(transformation_query), connection)
-            print(f"Extracted {len(df_fact)} rows from Staging.")
-    except Exception as e:
-        print(f"Error during extraction: {e}")
-        return
-
-    # STEP 2: Load to Temp & Insert to DWH
-    try:
-        with dwh_engine.begin() as connection:
-            # Load into temporary table
-            df_fact.to_sql("temp_fact_lines", connection, if_exists="replace", index=False)
-
-            # Insert into Fact Table (Looking up SKs from Dimensions)
-            # We use NOT EXISTS to prevent duplicates if run multiple times
-            insert_query = """
-            INSERT INTO fact_order_line_item (
-                SK_Date, SK_Customer, SK_Product, SK_Merchant, SK_Staff, 
-                Order_ID, QuantitySold, LineItemPrice, LineItemTotalAmount
-            )
-            SELECT 
-                d.SK_Date,
-                c.SK_Customer,
-                p.SK_Product,
-                m.SK_Merchant,
-                s.SK_Staff,
-                t.order_id,
-                t.quantity,
-                t.price,
-                (t.quantity * t.price) as LineItemTotalAmount
-            FROM temp_fact_lines t
-            LEFT JOIN dim_date d ON CAST(TO_CHAR(t.transaction_date::DATE, 'YYYYMMDD') AS INTEGER) = d.SK_Date
-            LEFT JOIN dim_customer c ON t.user_id = c.customer_id
-            LEFT JOIN dim_product p ON t.product_id = p.product_id
-            LEFT JOIN dim_merchant m ON t.merchant_id = m.merchant_id
-            LEFT JOIN dim_staff s ON t.staff_id = s.staff_id
-            WHERE NOT EXISTS (
-                SELECT 1 FROM fact_order_line_item f 
-                WHERE f.Order_ID = t.order_id 
-                AND f.SK_Product = p.SK_Product
-            );
-            """
-            connection.execute(text(insert_query))
-            print("FACT_ORDER_LINE_ITEM successfully loaded.")
-
-    except Exception as e:
-        print(f"Error during DWH load: {e}")
+# Database Connection details
+DB_USER = os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'shopzada123')
+DB_STAGING_HOST = os.getenv('DB_STAGING_HOST', 'db_staging')
+DB_DWH_HOST = os.getenv('DB_DWH_HOST', 'db_dwh')
+DB_PORT = os.getenv('DB_PORT', '5432')
+DB_STAGING_NAME = os.getenv('DB_STAGING_NAME', 'shopzada_staging')
+DB_DWH_NAME = os.getenv('DB_DWH_NAME', 'shopzada_dwh')
 
 def main():
-    conn_staging = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_STAGING_HOST}:{DB_PORT}/{DB_STAGING_NAME}"
-    conn_dwh = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_DWH_HOST}:{DB_PORT}/{DB_DWH_NAME}"
-    staging_engine = create_engine(conn_staging)
-    dwh_engine = create_engine(conn_dwh)
+    staging_engine = create_engine(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_STAGING_HOST}:{DB_PORT}/{DB_STAGING_NAME}")
+    dwh_engine = create_engine(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_DWH_HOST}:{DB_PORT}/{DB_DWH_NAME}")
 
-    load_fact_order_line_item(staging_engine, dwh_engine)
+    print("Step 1: Extracting raw tables...")
+    df_orders = pd.read_sql("SELECT order_id, user_id, transaction_date FROM operations_order_data", staging_engine)
+    df_merchants = pd.read_sql("SELECT order_id, merchant_id, staff_id FROM enterprise_order_with_merchant_data", staging_engine)
+    df_products = pd.read_sql("SELECT order_id, product_id FROM operations_line_item_data_products", staging_engine)
+    df_prices = pd.read_sql("SELECT order_id, quantity, price FROM operations_line_item_data_prices", staging_engine)
+
+    print("Step 2: Loading to Landing Area...")
+    with dwh_engine.begin() as conn:
+        df_orders.to_sql("stg_raw_orders", conn, if_exists="replace", index=False)
+        df_merchants.to_sql("stg_raw_merchants_ref", conn, if_exists="replace", index=False)
+        df_products.to_sql("stg_raw_products_ref", conn, if_exists="replace", index=False)
+        df_prices.to_sql("stg_raw_prices_ref", conn, if_exists="replace", index=False)
+        
+        print("Step 3: Executing DISTINCT ON Upsert...")
+        # DISTINCT ON (order_id) ensures that we only ever propose ONE row per order_id to the INSERT
+        upsert_sql = """
+        INSERT INTO fact_order_line_item (
+            order_id, sk_customer, sk_merchant, sk_staff, 
+            sk_product, sk_date, quantitysold, lineitemprice, lineitemtotalamount
+        )
+        SELECT DISTINCT ON (sub.order_id)
+            sub.order_id,
+            sub.sk_customer,
+            sub.sk_merchant,
+            sub.sk_staff,
+            sub.sk_product,
+            sub.sk_date,
+            sub.clean_qty,
+            sub.price,
+            sub.line_total
+        FROM (
+            SELECT 
+                o.order_id,
+                c.sk_customer,
+                m.sk_merchant,
+                s.sk_staff,
+                p.sk_product,
+                d.sk_date,
+                CAST(NULLIF(regexp_replace(pr.quantity, '[^0-9.]', '', 'g'), '') AS NUMERIC) as clean_qty,
+                pr.price::DECIMAL as price,
+                (CAST(NULLIF(regexp_replace(pr.quantity, '[^0-9.]', '', 'g'), '') AS NUMERIC) * pr.price::DECIMAL) as line_total
+            FROM stg_raw_orders o
+            JOIN stg_raw_merchants_ref m_ref ON o.order_id = m_ref.order_id
+            JOIN stg_raw_products_ref p_ref ON o.order_id = p_ref.order_id
+            JOIN stg_raw_prices_ref pr ON o.order_id = pr.order_id
+            LEFT JOIN dim_customer c ON o.user_id = c.customer_id
+            LEFT JOIN dim_merchant m ON m_ref.merchant_id = m.merchant_id
+            LEFT JOIN dim_staff s ON m_ref.staff_id = s.staff_id
+            LEFT JOIN dim_product p ON p_ref.product_id = p.product_id
+            LEFT JOIN dim_date d ON o.transaction_date::date = d.fulldate
+        ) sub
+        ORDER BY sub.order_id -- Required for DISTINCT ON
+        ON CONFLICT (order_id) DO UPDATE SET
+            quantitysold = EXCLUDED.quantitysold,
+            lineitemtotalamount = EXCLUDED.lineitemtotalamount,
+            last_updated = CURRENT_TIMESTAMP;
+        """
+        conn.execute(text(upsert_sql))
+        print("FACT_ORDER_LINE_ITEM updated successfully with DISTINCT ON.")
 
 if __name__ == "__main__":
     main()
