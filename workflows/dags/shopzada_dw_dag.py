@@ -128,12 +128,12 @@ with DAG(
             )
             folder_ingestion_task.append(task)
 
-        # data_quality_checks_and_report = PythonOperator(
-        #     task_id = 'data_quality_checks_and_report',
-        #     python_callable = run_script,
-        #     op_kwargs = {'script_folder': INGESTION_FOLDER, 'script_name': DATA_QUALITY_CHECKS_SCRIPT},
-        #     retries = DEFAULT_RETRIES
-        # )
+        data_quality_checks_and_report = PythonOperator(
+            task_id = 'data_quality_checks_and_report',
+            python_callable = run_script,
+            op_kwargs = {'script_folder': INGESTION_FOLDER, 'script_name': DATA_QUALITY_CHECKS_SCRIPT},
+            retries = DEFAULT_RETRIES
+        )
 
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
@@ -148,7 +148,7 @@ with DAG(
             op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': CLEAN_PREPROCESSED_FILES_SCRIPT},
             retries=DEFAULT_RETRIES
         )
-        folder_ingestion_task >> load_to_staging_db >> clean_preprocessed_files
+        folder_ingestion_task >> data_quality_checks_and_report >>load_to_staging_db >> clean_preprocessed_files
 
 
     with TaskGroup('transform_and_load_dim', tooltip='Transform and load dimension tables') as transform_and_load_dim:
