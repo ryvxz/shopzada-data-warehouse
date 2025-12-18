@@ -14,11 +14,11 @@ DB_DWH_NAME = os.getenv('DB_DWH_NAME')
 
 def load_dim_campaign(staging_engine,dwh_engine):
     transformation_query = """
-    SELECT ROW_NUMBER() OVER (ORDER BY campaign_id) AS "SK_Campaign",
+    SELECT ROW_NUMBER() OVER (ORDER BY campaign_id) AS SK_Campaign,
            campaign_id, 
-           campaign_name AS "CampaignName", 
-           campaign_description AS "CampaignDescription", 
-           discount AS "CampaignDiscountRate"
+           campaign_name AS CampaignName, 
+           campaign_description AS CampaignDescription, 
+           discount AS CampaignDiscountRate
     FROM marketing_campaign_data;
     """
     
@@ -26,16 +26,18 @@ def load_dim_campaign(staging_engine,dwh_engine):
         with staging_engine.connect() as connection:
             # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
+            df_dim = df_dim.drop_duplicates(subset=['campaign_id'], keep='first')
             print(f"DIM_CAMPAIGN transformation success!")
+            print(df_dim.head())
         
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
 
     try:
-        with dwh_engine.begin() as connection:
+        with dwh_engine.begin() as conn:
             # Load the transformed data into the temp table
-            df_dim.to_sql("temp_campaign_staging", connection, if_exists="replace", index=False)
+            df_dim.to_sql("temp_campaign_staging", conn, if_exists="replace", index=False)
 
             # PostgreSQL-friendly upsert query
             sql_upsert = """
@@ -60,7 +62,7 @@ def load_dim_campaign(staging_engine,dwh_engine):
             """
             
             # Execute the upsert SQL
-            connection.execute(text(sql_upsert))
+            conn.execute(text(sql_upsert))
         
         print("DIM_CAMPAIGN load completed successfully.")
         

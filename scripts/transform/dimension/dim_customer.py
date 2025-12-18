@@ -15,12 +15,12 @@ def load_dim_customer(staging_engine,dwh_engine):
     
     transformation_query = """
     SELECT 
-        d.user_id AS "customer_id",
-        d.name AS "CustomerName",
-        j.job_title AS "JobTitle",
-        j.job_level AS "JobLevel",
-        c.issuing_bank AS "CreditCardType"
-    FROM staging.customer_user_data d
+        d.user_id AS customer_id,
+        d.name AS CustomerName,
+        j.job_title AS JobTitle,
+        j.job_level AS JobLevel,
+        c.issuing_bank AS CreditCardType
+    FROM customer_user_data d
     LEFT JOIN customer_user_job j ON d.user_id = j.user_id
     LEFT JOIN customer_user_credit_card c ON d.user_id = c.user_id;
     """
@@ -29,14 +29,16 @@ def load_dim_customer(staging_engine,dwh_engine):
             # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
             print(f"DIM_CUSTOMER transformation success!")
+            df_dim = df_dim.drop_duplicates(subset=['customer_id'], keep='first')
+            print(df_dim.head())
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
     
     try:
-        with dwh_engine.begin() as connection:
+        with dwh_engine.begin() as conn:
             # 1. Load the joined data into a temporary table
-            df_dim.to_sql("temp_customer_load", connection, if_exists="replace", index=False)
+            df_dim.to_sql("temp_customer_load", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -64,7 +66,7 @@ def load_dim_customer(staging_engine,dwh_engine):
             """
 
             # Execute the upsert SQL query
-            connection.execute(text(upsert_query))
+            conn.execute(text(upsert_query))
             print("DIM_CUSTOMER successfully synchronized.")
 
     except Exception as e:

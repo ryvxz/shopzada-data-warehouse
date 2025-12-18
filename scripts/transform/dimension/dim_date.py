@@ -18,15 +18,15 @@ def load_dim_date(staging_engine,dwh_engine):
     # It is safer to generate a wide fixed range (e.g., 5 years past, 5 years future).
     transformation_query = """
     SELECT 
-        CAST(TO_CHAR(datum, 'YYYYMMDD') AS INTEGER) AS "SK_Date",
-        datum AS "FullDate",
-        TO_CHAR(datum, 'Month') AS "MonthName",
-        EXTRACT(MONTH FROM datum) AS "MonthNumber",
-        EXTRACT(QUARTER FROM datum) AS "Quarter",
-        EXTRACT(YEAR FROM datum) AS "Year",
-        TO_CHAR(datum, 'Day') AS "DayName",
-        CASE WHEN EXTRACT(ISODOW FROM datum) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS "DayType",
-        EXTRACT(WEEK FROM datum) AS "WeekOfYear"
+        CAST(TO_CHAR(datum, 'YYYYMMDD') AS INTEGER) AS SK_Date,
+        datum AS FullDate,
+        TO_CHAR(datum, 'Month') AS MonthName,
+        EXTRACT(MONTH FROM datum) AS MonthNumber,
+        EXTRACT(QUARTER FROM datum) AS Quarter,
+        EXTRACT(YEAR FROM datum) AS Year,
+        TO_CHAR(datum, 'Day') AS DayName,
+        CASE WHEN EXTRACT(ISODOW FROM datum) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS DayType,
+        EXTRACT(WEEK FROM datum) AS WeekOfYear
     FROM generate_series(
         '2020-01-01'::DATE, 
         '2030-12-31'::DATE, 
@@ -39,15 +39,16 @@ def load_dim_date(staging_engine,dwh_engine):
             # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
             print(f"DIM_DATE transformation success!")
+            print(df_dim.head())
         
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
     
     try:
-        with dwh_engine.begin() as connection:
+        with dwh_engine.begin() as conn:
             # 1. Load the transformed data into a temporary table
-            df_dim.to_sql("temp_date_sync", connection, if_exists="replace", index=False)
+            df_dim.to_sql("temp_date_sync", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -79,7 +80,7 @@ def load_dim_date(staging_engine,dwh_engine):
             """
 
             # Execute the upsert SQL query
-            connection.execute(text(upsert_query))
+            conn.execute(text(upsert_query))
             print("DIM_DATE successfully synchronized.")
 
     except Exception as e:

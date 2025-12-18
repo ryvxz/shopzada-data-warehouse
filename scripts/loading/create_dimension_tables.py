@@ -14,10 +14,10 @@ def create_dim_campaign_table(dwh_engine):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS dim_campaign (
         SK_Campaign SERIAL PRIMARY KEY,
-        campaign_id INT UNIQUE NOT NULL,
+        campaign_id TEXT UNIQUE NOT NULL,
         CampaignName VARCHAR(255),
         CampaignDescription TEXT,
-        CampaignDiscountRate DECIMAL,
+        CampaignDiscountRate TEXT,
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
@@ -33,7 +33,7 @@ def create_dim_customer_table(dwh_engine):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS dim_customer (
         SK_Customer SERIAL PRIMARY KEY,
-        customer_id INT UNIQUE NOT NULL,
+        customer_id TEXT UNIQUE NOT NULL,
         CustomerName VARCHAR(255),
         JobTitle VARCHAR(100),
         JobLevel VARCHAR(100),
@@ -76,9 +76,9 @@ def create_dim_merchant_table(dwh_engine):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS dim_merchant (
         SK_Merchant SERIAL PRIMARY KEY,
-        merchant_id INT UNIQUE NOT NULL,
+        merchant_id TEXT UNIQUE NOT NULL,
         MerchantName VARCHAR(255),
-        CreationDate DATE,
+        CreationDate TEXT,
         StreetAddress VARCHAR(255),
         City VARCHAR(100),
         State VARCHAR(100),
@@ -99,7 +99,7 @@ def create_dim_product_table(dwh_engine):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS dim_product (
         SK_Product SERIAL PRIMARY KEY,
-        product_id INT UNIQUE NOT NULL,
+        product_id TEXT UNIQUE NOT NULL,
         ProductName VARCHAR(255),
         ProductType VARCHAR(100),
         ProductPrice DECIMAL,
@@ -118,7 +118,7 @@ def create_dim_staff_table(dwh_engine):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS dim_staff (
         SK_Staff SERIAL PRIMARY KEY,
-        staff_id INT UNIQUE NOT NULL,
+        staff_id TEXT UNIQUE NOT NULL,
         StaffName VARCHAR(255),
         JobLevel VARCHAR(100),
         HireDate DATE,

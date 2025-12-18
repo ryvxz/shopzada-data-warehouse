@@ -16,13 +16,13 @@ def load_dim_merchant(staging_engine,dwh_engine):
     transformation_query = """
     SELECT 
         merchant_id, 
-        name AS "MerchantName", 
-        creation_date AS "CreationDate",
-        street AS "StreetAddress", 
-        city AS "City", 
-        state AS "State", 
-        country AS "Country", 
-        contact_number AS "ContactNumber"
+        name AS MerchantName, 
+        creation_date AS CreationDate,
+        street AS StreetAddress, 
+        city AS City, 
+        state AS State, 
+        country AS Country, 
+        contact_number AS ContactNumber
     FROM enterprise_merchant_data;
     """
 
@@ -30,16 +30,18 @@ def load_dim_merchant(staging_engine,dwh_engine):
         with staging_engine.connect() as connection:
             # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
+            df_dim = df_dim.drop_duplicates(subset=['merchant_id'], keep='first')
             print(f"DIM_MERCHANT transformation success!")
+            print(df_dim.head())
         
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
     
     try:
-        with dwh_engine.begin() as connection:
+        with dwh_engine.begin() as conn:
             # 1. Upload the transformed data into a temporary staging table
-            df_dim.to_sql("temp_merchant_sync", connection, if_exists="replace", index=False)
+            df_dim.to_sql("temp_merchant_sync", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -68,7 +70,7 @@ def load_dim_merchant(staging_engine,dwh_engine):
             """
 
             # Execute the upsert SQL query
-            connection.execute(text(upsert_query))
+            conn.execute(text(upsert_query))
             print("DIM_MERCHANT successfully synchronized.")
 
     except Exception as e:

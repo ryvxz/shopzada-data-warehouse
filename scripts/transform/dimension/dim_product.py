@@ -16,9 +16,9 @@ def load_dim_product(staging_engine,dwh_engine):
     transformation_query = """
     SELECT 
         product_id,
-        product_name AS "ProductName",
-        product_type AS "ProductType",
-        price AS "ProductPrice"
+        product_name AS ProductName,
+        product_type AS ProductType,
+        price AS ProductPrice
     FROM business_product_list;
     """
     try:
@@ -26,15 +26,17 @@ def load_dim_product(staging_engine,dwh_engine):
             # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
             print(f"DIM_PRODUCT transformation success!")
+            df_dim = df_dim.drop_duplicates(subset=['product_id'], keep='first')
+            print(df_dim.head())
         
     except Exception as e:
         print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
     
     try:
-        with dwh_engine.begin() as connection:
+        with dwh_engine.begin() as conn:
             # 1. Upload the transformed data into a temporary staging table
-            df_dim.to_sql("temp_product_sync", connection, if_exists="replace", index=False)
+            df_dim.to_sql("temp_product_sync", conn, if_exists="replace", index=False)
 
             # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
             upsert_query = """
@@ -60,7 +62,7 @@ def load_dim_product(staging_engine,dwh_engine):
             """
 
             # Execute the upsert SQL query
-            connection.execute(text(upsert_query))
+            conn.execute(text(upsert_query))
             print("DIM_PRODUCT successfully synchronized.")
 
     except Exception as e:

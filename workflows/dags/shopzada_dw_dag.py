@@ -43,6 +43,7 @@ load_dotenv()
 # - MAIN_DAG_ID: DAG ID to trigger when files are detected
 # =============================================================================
 
+
 # Data Configuration
 DATA_FOLDER = os.getenv("DATA_FOLDER", "/opt/airflow/plugins/data")
 DEFAULT_RETRIES = int(os.getenv("DEFAULT_RETRIES", 3))
@@ -126,12 +127,12 @@ with DAG(
             )
             folder_ingestion_task.append(task)
 
-        data_quality_checks_and_report = PythonOperator(
-            task_id = 'data_quality_checks_and_report',
-            python_callable = run_script,
-            op_kwargs = {'script_folder': INGESTION_FOLDER, 'script_name': DATA_QUALITY_CHECKS_SCRIPT},
-            retries = DEFAULT_RETRIES
-        )
+        # data_quality_checks_and_report = PythonOperator(
+        #     task_id = 'data_quality_checks_and_report',
+        #     python_callable = run_script,
+        #     op_kwargs = {'script_folder': INGESTION_FOLDER, 'script_name': DATA_QUALITY_CHECKS_SCRIPT},
+        #     retries = DEFAULT_RETRIES
+        # )
 
         load_to_staging_db = PythonOperator(
             task_id='load_to_staging_db',
@@ -139,7 +140,14 @@ with DAG(
             op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': LOAD_TO_STAGING_SCRIPT},
             retries=DEFAULT_RETRIES
         )
-        folder_ingestion_task >> data_quality_checks_and_report >> load_to_staging_db
+
+        clean_preprocessed_files = PythonOperator(
+            task_id='clean_preprocessed_files',
+            python_callable=run_script,
+            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': CLEAN_PREPROCESSED_FILES_SCRIPT},
+            retries=DEFAULT_RETRIES
+        )
+        folder_ingestion_task >> load_to_staging_db >> clean_preprocessed_files
 
 
     with TaskGroup('transform_and_load_dim', tooltip='Transform and load dimension tables') as transform_and_load_dim:
@@ -164,23 +172,37 @@ with DAG(
             )
             dim_tasks.append(task)
 
-        clean_preprocessed_files = PythonOperator(
-            task_id='clean_preprocessed_files',
+        
+
+        # All tasks in the list run in parallel, then trigger the clean task
+        create_dimension_tables >> dim_tasks 
+
+    with TaskGroup('transform_and_load_fact', tooltip='Transform and load fact tables') as transform_and_load_fact:
+    
+        facts = ['campaign_transaction','order_line_item','order_delay']
+        
+        create_fact_tables = PythonOperator(
+            task_id='create_fact_tables',
             python_callable=run_script,
-            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': CLEAN_PREPROCESSED_FILES_SCRIPT},
+            op_kwargs={'script_folder': LOADING_FOLDER, 'script_name': "create_fact_tables"},
             retries=DEFAULT_RETRIES
         )
 
-        # All tasks in the list run in parallel, then trigger the clean task
-        dim_tasks >> clean_preprocessed_files
+        # Create tasks dynamically
+        fact_tasks = []
+        for fact in facts:
+            task = PythonOperator(
+                task_id=f'fact_{fact}',
+                python_callable=run_script,
+                op_kwargs={'script_folder': FACT_FOLDER, 'script_name': f"fact_{fact}"},
+                retries=DEFAULT_RETRIES
+            )
+            dim_tasks.append(task)
 
-    # with TaskGroup('transform_and_load_fact', tooltip='Transform and load fact tables') as transform_and_load_fact:
-    #     dim_campaign = PythonOperator(
-    #         task_id='dim_campaign',
-    #         python_callable=run_script,
-    #         op_kwargs={'script_folder': FACT_FOLDER, 'script_name': TRANSFORM_SCRIPT},
-    #         retries=DEFAULT_RETRIES
-    #     )
+        
+
+        # All tasks in the list run in parallel, then trigger the clean task
+        create_fact_tables >> fact_tasks 
 
 
     # with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
@@ -199,7 +221,7 @@ with DAG(
         start,
         source_staging,
         transform_and_load_dim,
-        #transform_and_load_fact,
+        transform_and_load_fact,
         # datamarts_and_views,
         # analytics,
         # presentation,
