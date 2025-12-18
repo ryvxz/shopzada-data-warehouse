@@ -1,54 +1,99 @@
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+import os
 
-def transform_date(engine):
-    """
-    Generates a Date Dimension based on the range of dates found 
-    across transaction, merchant, and staff data.
-    """
+# 1. Define your connection details for staging layer
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_STAGING_HOST = os.getenv('DB_STAGING_HOST') 
+DB_DWH_HOST = os.getenv('DB_DWH_HOST')
+DB_PORT = os.getenv('DB_PORT')
+DB_STAGING_NAME = os.getenv('DB_STAGING_NAME')
+DB_DWH_NAME = os.getenv('DB_DWH_NAME')
+
+
+
+def load_dim_date(staging_engine,dwh_engine):
+    # We define a range (e.g., 2020 to 2030) or use your dynamic range logic.
+    # It is safer to generate a wide fixed range (e.g., 5 years past, 5 years future).
     transformation_query = """
-    WITH date_range AS (
-        -- Find the absolute min and max dates across all relevant tables
-        SELECT 
-            MIN(min_date)::DATE as start_date, 
-            MAX(max_date)::DATE as end_date
-        FROM (
-            SELECT MIN(transaction_data) as min_date, MAX(transaction_data) as max_date FROM operations_order_data
-            UNION ALL
-            SELECT MIN(creation_date), MAX(creation_date) FROM enterprise_merchant_data
-            UNION ALL
-            SELECT MIN(creation_date), MAX(creation_date) FROM enterprise_staff_data
-        ) sub
-    ),
-    all_dates AS (
-        -- Generate one row for every day between the min and max
-        SELECT 
-            generate_series(start_date, end_date, '1 day'::interval)::DATE AS FullDate
-        FROM date_range
-    )
     SELECT 
-        -- SK_Date: Integer Format (YYYYMMDD) is standard for Date Dimensions
-        CAST(TO_CHAR(FullDate, 'YYYYMMDD') AS INTEGER) AS "SK_Date",
-        
-        -- FullDate: The actual date object
-        FullDate AS "FullDate",
-        
-        -- Useful extras often included in DIM_DATE
-        EXTRACT(YEAR FROM FullDate) AS "Year",
-        EXTRACT(MONTH FROM FullDate) AS "Month",
-        TO_CHAR(FullDate, 'Month') AS "MonthName",
-        EXTRACT(DAY FROM FullDate) AS "Day",
-        TO_CHAR(FullDate, 'Day') AS "DayOfWeek"
-        
-    FROM all_dates;
+        CAST(TO_CHAR(datum, 'YYYYMMDD') AS INTEGER) AS "SK_Date",
+        datum AS "FullDate",
+        TO_CHAR(datum, 'Month') AS "MonthName",
+        EXTRACT(MONTH FROM datum) AS "MonthNumber",
+        EXTRACT(QUARTER FROM datum) AS "Quarter",
+        EXTRACT(YEAR FROM datum) AS "Year",
+        TO_CHAR(datum, 'Day') AS "DayName",
+        CASE WHEN EXTRACT(ISODOW FROM datum) IN (6, 7) THEN 'Weekend' ELSE 'Weekday' END AS "DayType",
+        EXTRACT(WEEK FROM datum) AS "WeekOfYear"
+    FROM generate_series(
+        '2020-01-01'::DATE, 
+        '2030-12-31'::DATE, 
+        '1 day'::interval
+    ) datum;
     """
-    
+
     try:
-        with engine.connect() as connection:
+        with staging_engine.connect() as connection:
+            # Execute the query and return the result as a DataFrame
             df_dim = pd.read_sql(text(transformation_query), connection)
-        
-        return df_dim
+            print(f"DIM_DATE transformation success!")
         
     except Exception as e:
-        print(f"Error during DIM_DATE transformation: {e}")
+        print(f"Error during DIM_CAMPAIGN transformation: {e}")
         return None
+    
+    try:
+        with dwh_engine.begin() as connection:
+            # 1. Load the transformed data into a temporary table
+            df_dim.to_sql("temp_date_sync", connection, if_exists="replace", index=False)
+
+            # 2. PostgreSQL-friendly upsert: Insert new rows and update existing ones
+            upsert_query = """
+            WITH upsert AS (
+                -- Insert new records that don't exist in dim_date
+                INSERT INTO dim_date (SK_Date, FullDate, MonthName, MonthNumber, Quarter, Year, DayName, DayType, WeekOfYear)
+                SELECT t.SK_Date, t.FullDate, t.MonthName, t.MonthNumber, t.Quarter, t.Year, t.DayName, t.DayType, t.WeekOfYear
+                FROM temp_date_sync t
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM dim_date d WHERE d.SK_Date = t.SK_Date
+                )
+                RETURNING SK_Date  -- Return inserted SK_Date to avoid updating them later
+            )
+            -- Update existing records if they already exist
+            UPDATE dim_date AS d
+            SET 
+                FullDate = t.FullDate,
+                MonthName = t.MonthName,
+                MonthNumber = t.MonthNumber,
+                Quarter = t.Quarter,
+                Year = t.Year,
+                DayName = t.DayName,
+                DayType = t.DayType,
+                WeekOfYear = t.WeekOfYear,
+                last_updated = CURRENT_TIMESTAMP
+            FROM temp_date_sync t
+            WHERE d.SK_Date = t.SK_Date
+            AND NOT EXISTS (SELECT 1 FROM upsert u WHERE u.SK_Date = d.SK_Date);
+            """
+
+            # Execute the upsert SQL query
+            connection.execute(text(upsert_query))
+            print("DIM_DATE successfully synchronized.")
+
+    except Exception as e:
+        print(f"Error during DIM_DATE load: {e}")
+
+    
+def main():
+    connection_staging_string = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_STAGING_HOST}:{DB_PORT}/{DB_STAGING_NAME}"
+    staging_engine = create_engine(connection_staging_string)
+    connection_dwh_string = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_DWH_HOST}:{DB_PORT}/{DB_DWH_NAME}"
+    dwh_engine = create_engine(connection_dwh_string)
+
+    load_dim_date(staging_engine,dwh_engine)
+
+
+if __name__ == "__main__":
+    main()

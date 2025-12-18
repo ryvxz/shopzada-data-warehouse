@@ -96,24 +96,3 @@ def stage_data(staging_tables: Dict[str, any]):
         logger.error(f"Error while staging data: {e}")
         raise
 
-def main():
-    """Main function to run the data ingestion pipeline."""
-    try:
-        check_env_variables()
-
-        # Step 1: Ingest data
-        staging_tables = ingest_data()
-
-        # Step 2: Group tables
-        group_tables(staging_tables)
-
-        # Step 3: Stage the data as Parquet files
-        stage_data(staging_tables)
-
-
-    except Exception as e:
-        logger.error(f"Pipeline execution failed: {e}")
-        raise
-
-if __name__ == "__main__":
-    main()

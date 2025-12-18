@@ -50,21 +50,26 @@ DEFAULT_RETRIES = int(os.getenv("DEFAULT_RETRIES", 3))
 # Script Configuration
 DEFAULT_SCRIPTS_FOLDER = os.getenv("DEFAULT_SCRIPTS_FOLDER", "/opt/airflow/plugins/scripts")
 INGESTION_FOLDER = os.getenv("INGESTION_FOLDER", "ingestion")
-TRANSFORM_FOLDER = os.getenv("TRANSFORM_FOLDER", "ingestion/transform")
+INGESTION_PARQUET_FOLDER = os.getenv("INGESTION_FOLDER", "ingestion/to_parquet")
+DIMENSION_FOLDER = os.getenv("DIMENSION_FOLDER", "ingestion/transform/dimension")
+FACT_FOLDER = os.getenv("FACT_FOLDER","ingestion/transform/fact")
+LOADING_FOLDER = os.getenv("LOADING_FOLDER","loading")
 
 # Script Names
-LOAD_TO_PARQUET_SCRIPT = os.getenv("LOAD_TO_PARQUET_SCRIPT", "load_to_parquet")
 DATA_QUALITY_CHECKS_SCRIPT = os.getenv("DATA_QUALITY_CHECKS_SCRIPT", "data_quality_checks")
 LOAD_TO_STAGING_SCRIPT = os.getenv("LOAD_TO_STAGING_SCRIPT", "load_to_staging")
-TRANSFORM_SCRIPT = os.getenv("TRANSFORM_SCRIPT", "transform")
+TRANSFORM_SCRIPT = os.getenv("TRANSFORM_SCRIPT", "transform_tables")
 QUALITY_CHECKS_SCRIPT = os.getenv("QUALITY_CHECKS_SCRIPT", "quality_checks")
 CLEAN_PREPROCESSED_FILES_SCRIPT = os.getenv("CLEAN_PREPROCESSED_FILES_SCRIPT", "clean_preprocessed_files")
+
+#
 
 # File Sensor Configuration (for validation)
 FILE_SENSOR_SCHEDULE_MINUTES = int(os.getenv("FILE_SENSOR_SCHEDULE_MINUTES", "2"))
 FILE_SENSOR_POKE_INTERVAL = int(os.getenv("FILE_SENSOR_POKE_INTERVAL", "10"))
 FILE_SENSOR_TIMEOUT = int(os.getenv("FILE_SENSOR_TIMEOUT", "60"))
 FILE_SENSOR_MINDEPTH = int(os.getenv("FILE_SENSOR_MINDEPTH", "1"))
+
 
 def validate_environment_variables():
     """Validate critical environment variables with warnings and minimal safe fallbacks."""
@@ -109,12 +114,17 @@ with DAG(
     start = EmptyOperator(task_id='start')
 
     with TaskGroup('source_staging', tooltip='Source data from dataset and stage it') as source_staging:
-        ingest_all_sources = PythonOperator(
-            task_id='ingest_all_sources',
-            python_callable=run_script,
-            op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': LOAD_TO_PARQUET_SCRIPT},
-            retries=DEFAULT_RETRIES
-        )
+
+        folders = ['business','customer','enterprise','marketing','operations']
+        folder_ingestion_task = []
+        for folder in folders:
+            task = PythonOperator(
+                task_id=f'load_{folder}_to_parquet',
+                python_callable=run_script,
+                op_kwargs={'script_folder': INGESTION_PARQUET_FOLDER, 'script_name': f"load_{folder}_to_parquet"},
+                retries=DEFAULT_RETRIES
+            )
+            folder_ingestion_task.append(task)
 
         data_quality_checks_and_report = PythonOperator(
             task_id = 'data_quality_checks_and_report',
@@ -129,56 +139,49 @@ with DAG(
             op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': LOAD_TO_STAGING_SCRIPT},
             retries=DEFAULT_RETRIES
         )
-        ingest_all_sources >> data_quality_checks_and_report >> load_to_staging_db
+        folder_ingestion_task >> data_quality_checks_and_report >> load_to_staging_db
 
 
-    with TaskGroup('transform_and_quality_checks', tooltip='Transform data and perform quality checks') as transform_and_quality_checks:
-        transform_data = PythonOperator(
-            task_id='transform_data',
+    with TaskGroup('transform_and_load_dim', tooltip='Transform and load dimension tables') as transform_and_load_dim:
+    
+        dims = ['campaign', 'customer', 'date', 'merchant', 'product', 'staff']
+        
+        create_dimension_tables = PythonOperator(
+            task_id='create_dimension_tables',
             python_callable=run_script,
-            op_kwargs={'script_folder': 'ingestion/transform', 'script_name': 'transform_tables'},
+            op_kwargs={'script_folder': LOADING_FOLDER, 'script_name': "create_dimension_tables"},
             retries=DEFAULT_RETRIES
         )
-        quality_checks = PythonOperator(
-            task_id='quality_checks',
-            python_callable=run_script,
-            op_kwargs={'script_folder': TRANSFORM_FOLDER, 'script_name': QUALITY_CHECKS_SCRIPT},
-            retries=DEFAULT_RETRIES
-        )
+
+        # Create tasks dynamically
+        dim_tasks = []
+        for dim in dims:
+            task = PythonOperator(
+                task_id=f'dim_{dim}',
+                python_callable=run_script,
+                op_kwargs={'script_folder': DIMENSION_FOLDER, 'script_name': f"dim_{dim}"},
+                retries=DEFAULT_RETRIES
+            )
+            dim_tasks.append(task)
+
         clean_preprocessed_files = PythonOperator(
             task_id='clean_preprocessed_files',
             python_callable=run_script,
             op_kwargs={'script_folder': INGESTION_FOLDER, 'script_name': CLEAN_PREPROCESSED_FILES_SCRIPT},
             retries=DEFAULT_RETRIES
         )
-        transform_data >> quality_checks >> clean_preprocessed_files
 
+        # All tasks in the list run in parallel, then trigger the clean task
+        dim_tasks >> clean_preprocessed_files
 
+    # with TaskGroup('transform_and_load_fact', tooltip='Transform and load fact tables') as transform_and_load_fact:
+    #     dim_campaign = PythonOperator(
+    #         task_id='dim_campaign',
+    #         python_callable=run_script,
+    #         op_kwargs={'script_folder': FACT_FOLDER, 'script_name': TRANSFORM_SCRIPT},
+    #         retries=DEFAULT_RETRIES
+    #     )
 
-    with TaskGroup('load_to_dw', tooltip='Load data into the data warehouse') as load_to_dw:
-        load_physical_model = transform_data = EmptyOperator(task_id='load_physical_model')
-        # transform_data = PythonOperator(
-        #     task_id='load_physical_model',
-        #     python_callable=run_script,
-        #     op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-        #     retries=DEFAULT_RETRIES
-        # )
-
-    with TaskGroup('kimball_dw_postgres', tooltip='Kimball dimensional model') as kimball_dw:
-        build_dimensions = transform_data = EmptyOperator(task_id='build_dimensions')
-        # transform_data = PythonOperator(
-        #     task_id='build_dimensions',
-        #     python_callable=run_script,
-        #     op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-        #     retries=DEFAULT_RETRIES
-        # )
-        build_facts = transform_data = EmptyOperator(task_id = 'build_facts')
-        # transform_data = PythonOperator(
-        #     task_id='build_facts',
-        #     python_callable=run_script,
-        #     op_kwargs={'script_folder': 'ingestion/transform', 'script_name': '<TODO>'},
-        #     retries=DEFAULT_RETRIES
-        # )
 
     # with TaskGroup('datamarts_and_views', tooltip='(Optional) Create datamarts and views') as datamarts_and_views:
     #     create_datamarts = EmptyOperator(task_id='create_datamarts')
@@ -195,9 +198,8 @@ with DAG(
     chain(
         start,
         source_staging,
-        transform_and_quality_checks,
-        load_to_dw,
-        kimball_dw,
+        transform_and_load_dim,
+        #transform_and_load_fact,
         # datamarts_and_views,
         # analytics,
         # presentation,
